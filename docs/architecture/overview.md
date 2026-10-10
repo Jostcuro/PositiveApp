@@ -32,7 +32,8 @@ Positive gestiona de forma centralizada las conversaciones de un único número 
 
 - MySQL 8.4 LTS.
 - En desarrollo local corre en un contenedor Docker (ver [setup](../development/setup.md)) para reproducibilidad y evitar instalaciones de sistema.
-- Las migraciones, relaciones, índices, unicidad y restricciones se definirán cuando se apruebe el modelo de datos (tarea posterior), no en el scaffold actual.
+- El modelo de datos propuesto (entidades, relaciones, índices, unicidad y reglas de conservación) está en
+  [data-model](data-model.md). Las migraciones aún **no** se han implementado.
 
 ## Principio de monolito modular
 
@@ -50,6 +51,17 @@ Positive gestiona de forma centralizada las conversaciones de un único número 
 
 - Tareas asíncronas bajo Laravel cuando sea necesario (procesamiento de webhooks, envíos, estados).
 - Se introducirán cuando haya una necesidad concreta; no se preconfigura infraestructura de colas en esta fase.
+
+## Estados, datos y permisos (diseño)
+
+El diseño técnico del MVP se documenta en:
+
+- [Modelo de datos](data-model.md): entidades, relaciones, índices, integridad y conservación del historial.
+- [Máquinas de estados](state-machines.md): estados de conversación, mensaje y evento; errores, reintentos e idempotencia.
+- [Matriz de permisos](../security/permission-matrix.md): autorización por rol, visibilidad y anti-IDOR.
+- [Decisiones pendientes](design-decisions-pending.md): supuestos y decisiones aún sin aprobar.
+
+Estos documentos son **propuesta de diseño**, no implementación. No existen migraciones ni módulos funcionales.
 
 ## Límites del MVP
 

@@ -6,6 +6,8 @@ Plataforma web para que los empleados de una empresa gestionen de forma centrali
 
 Fase de **preparación del repositorio y entorno de desarrollo** (Tarea 01). Todavía **no** existen módulos funcionales (contactos, conversaciones, mensajería, autenticación ni integración con WhatsApp).
 
+El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado como propuesta en `docs/architecture/` y `docs/security/`; tampoco está implementado.
+
 > **Integración con Meta: pendiente y bloqueante.** No se conectará el número empresarial real, no se enviarán mensajes reales ni se solicitarán credenciales hasta completar la validación descrita en [`docs/integrations/meta-integration-pending.md`](docs/integrations/meta-integration-pending.md).
 
 ## Stack
@@ -41,6 +43,10 @@ La matriz completa de versiones y sus motivos está en [ADR-002](docs/decisions/
 ## Documentación
 
 - [Arquitectura](docs/architecture/overview.md)
+- [Modelo de datos](docs/architecture/data-model.md)
+- [Máquinas de estados](docs/architecture/state-machines.md)
+- [Decisiones de diseño pendientes](docs/architecture/design-decisions-pending.md)
+- [Matriz de permisos](docs/security/permission-matrix.md)
 - [Decisiones (ADRs)](docs/decisions/)
 - [Configuración del entorno](docs/development/setup.md)
 - [Seguridad](docs/security/security-baseline.md)
