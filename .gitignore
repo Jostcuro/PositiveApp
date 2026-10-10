@@ -1,0 +1,16 @@
+# Credenciales de infraestructura (dev) - nunca versionar
+/.env
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs y temporales
+*.log

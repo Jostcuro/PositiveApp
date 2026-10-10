@@ -1,0 +1,27 @@
+# Entorno de desarrollo local (solo base de datos MySQL).
+# No es infraestructura de producción. Credenciales en .env (gitignored).
+name: positive-whatsapp-dev
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: positive_whatsapp_mysql
+    restart: "no"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-positive_whatsapp}
+      MYSQL_USER: ${MYSQL_USER:-positive}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?definir MYSQL_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?definir MYSQL_ROOT_PASSWORD en .env}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mysql_data:
