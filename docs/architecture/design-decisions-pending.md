@@ -3,6 +3,7 @@
 > **Estado:** registro vivo. Recoge solo decisiones que pueden afectar al comportamiento, la seguridad, el
 > esquema o la integración. **No duplica** el detalle: cuando existe una fuente principal, se referencia.
 > Bloqueo indicado por: **diseño** · **implementación** · **integración real** · **ninguno** (revisable).
+> Las decisiones que incluyen una línea «Decisión (fecha)» están **aprobadas**; el resto sigue pendiente.
 
 ## Resumen
 
@@ -31,6 +32,7 @@
 - **Pregunta:** ¿qué conversaciones ve cada rol?
 - **Opciones:** (a) `admin` ve todo; `agent` ve sin asignar + propias · (b) `agent` ve solo las propias (debe tomar para ver) · (c) todos ven todo.
 - **Recomendación provisional:** (a). Detalle en [permission-matrix §3](../security/permission-matrix.md#3-política-de-visibilidad-de-conversaciones-propuesta).
+- **Decisión (2026-10-10):** aprobada la opción (a): `admin` ve todo; `agent` ve sin asignar + propias.
 - **Consecuencia de errar:** fuga de conversaciones de clientes entre empleados o, al contrario, agentes sin trabajo visible.
 - **Responsable:** responsable de producto.
 - **Bloquea:** implementación de autorización.
@@ -40,6 +42,8 @@
 - **Pregunta:** ¿qué ocurre con sus conversaciones al desactivarlo?
 - **Opciones:** (a) dejarlas **sin asignar** en transacción + auditoría · (b) **bloquear** la desactivación hasta reasignarlas.
 - **Recomendación provisional:** (a).
+- **Decisión (2026-10-10):** aprobada la opción (a): desactivar deja las conversaciones **sin asignar** en la
+  misma transacción + auditoría.
 - **Consecuencia de errar:** conversaciones “colgadas” sin responsable visible, o bloqueo operativo del administrador.
 - **Responsable:** responsable de producto.
 - **Bloquea:** implementación.
@@ -60,6 +64,8 @@
 - **Opciones:** (a) sin `companies`/`tenant_id`; documentar supuesto mono-empresa · (b) añadir `tenant_id` nullable ya.
 - **Recomendación provisional:** (a). Punto de inserción futura: columna `company_id` en `contacts`/`conversations`/
   `users` y cambio de `UNIQUE(contact.phone_e164)` a `UNIQUE(company_id, phone_e164)`.
+- **Decisión (2026-10-10):** aprobada la opción (a): mono-empresa sin `companies`/`tenant_id` (esquema ya
+  implementado en Tarea 03); se conserva documentado el punto de inserción futura.
 - **Consecuencia de errar:** retrabajo de esquema y consultas si se adopta SaaS; hoy no se implementa.
 - **Responsable:** arquitectura.
 - **Bloquea:** ninguno; documentado en [data-model §2 (S3)](../architecture/data-model.md#supuestos-documentados).
@@ -101,6 +107,7 @@
 - **Consecuencia de errar:** enumeración de recursos; no es crítico si la autorización es correcta, pero degrada.
 - **Responsable:** arquitectura.
 - **Bloquea:** implementación (afecta esquema y rutas).
+- **Estado (2026-10-10):** implementada la opción (a) en `contacts`/`conversations` (Tarea 03); aprobación formal pendiente.
 
 <a id="dd-009"></a>
 ### DD-009 — Identidad de contacto (BSUID/usernames)
@@ -110,6 +117,8 @@
 - **Consecuencia de errar:** contactos duplicados o fusiones incorrectas; ruptura cuando Meta entregue BSUID.
 - **Responsable:** arquitectura + validación de Meta.
 - **Bloquea:** diseño (y por tanto implementación).
+- **Estado (2026-10-10):** implementada la identidad por `provider + provider_user_id` con `phone_e164?` (opción
+  (a)) en la tabla `contacts` (Tarea 03); aprobación formal pendiente.
 
 <a id="dd-010"></a>
 ### DD-010 — `whatsapp_accounts` en el MVP
@@ -153,6 +162,8 @@
 - **Pregunta:** ¿quién puede asignar y con qué efecto?
 - **Opciones:** (a) `admin` asigna a cualquiera; `agent` solo toma sin asignar hacia sí mismo · (b) `agent` puede reasignar a otros.
 - **Recomendación provisional:** (a). Ver [permission-matrix §5.3](../security/permission-matrix.md#53-reasignación).
+- **Decisión (2026-10-10):** aprobada la opción (a): `admin` asigna a cualquiera; `agent` solo toma sin asignar
+  hacia sí mismo.
 - **Consecuencia de errar:** agentes “robándose” conversaciones o sin poder organizarse.
 - **Responsable:** responsable de producto.
 - **Bloquea:** implementación.

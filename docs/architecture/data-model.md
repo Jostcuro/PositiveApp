@@ -1,7 +1,8 @@
 # Modelo de datos — MVP de Positive
 
-> **Estado:** propuesta de diseño. **No implementado.** No existen migraciones ni modelos de negocio todavía.
-> Este documento es la fuente principal del modelo de datos. Para decisiones aún sin aprobar, ver
+> **Estado (2026-10-10):** implementado como esquema y modelos en Tarea 03. Migraciones en
+> `backend/database/migrations`, modelos en `backend/app/Models`, pruebas en `backend/tests/Feature/Database`.
+> Para decisiones aún sin aprobar, ver
 > [`design-decisions-pending.md`](design-decisions-pending.md). Para transiciones de estado, ver
 > [`state-machines.md`](state-machines.md). Para permisos, ver [`../security/permission-matrix.md`](../security/permission-matrix.md).
 
@@ -27,7 +28,7 @@ El modelo se deriva de estos escenarios, no de una lista fija de tablas.
 | 3 | Una conversación se crea o se asocia a un contacto. | `contacts`, `conversations` |
 | 4 | Un administrador o agente autorizado asigna una conversación. | `conversations`, `audit_logs` |
 | 5 | Un agente autorizado consulta el historial y cambia el estado de una conversación. | `messages`, `conversations`, `audit_logs` |
-| 6 | Un agente intenta enviar un mensaje. | `messages` |
+| 6 | Un agente intenta enviar un mensaje. | `messages`, `users` |
 | 7 | El sistema registra el resultado conocido del envío. | `messages`, `whatsapp_accounts` |
 | 8 | Se recibe un evento externo que actualiza el estado de un mensaje. | `webhook_events`, `messages` |
 | 9 | El mismo evento se recibe más de una vez. | `webhook_events` |
@@ -58,6 +59,8 @@ El modelo se deriva de estos escenarios, no de una lista fija de tablas.
   URL (`contacts`, `conversations`). Los `messages` se acceden siempre bajo una conversación autorizada y usan
   su `id` interno. Ver [DD-008](design-decisions-pending.md#dd-008).
 - **Fechas:** `DATETIME` en UTC (no `TIMESTAMP`, para no depender de la zona horaria de sesión de MySQL).
+  Aplicado en las tablas creadas en Tarea 03; la tabla `users` base conserva el `timestamp` del scaffold de
+  Laravel (divergencia registrada; alinear solo si se aprueba).
 - **Enumeraciones:** `VARCHAR` con validación en aplicación (no `ENUM` de MySQL), para poder añadir valores sin
   migración. Los valores válidos se documentan en [`state-machines.md`](state-machines.md).
 - **Nombres:** tablas en plural `snake_case`; FK `<entidad>_id`; timestamps `created_at`/`updated_at` (Laravel/Eloquent).
@@ -89,8 +92,9 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 
 - **PK:** `id`. **Unicidad:** `email` (unique).
 - **Compatibilidad con Laravel:** se parte de la migración `users` existente y se **añaden** `role`, `is_active`,
-  `deactivated_at`; se **elimina** `email_verified_at` (panel interno, sin flujo de verificación) y se evalúa
-  prescindir de `remember_token` (sesión SPA con cookies). Cambios de esquema en tarea de migraciones.
+  `deactivated_at` (aplicado en la migración `2026_10_10_000001`); se **eliminó** `email_verified_at` (panel
+  interno, sin flujo de verificación). `remember_token` se **conserva**; prescindir de él depende del modelo de
+  autenticación aprobado (DD-013). Cambios de esquema en tarea de migraciones.
 - **Índices:** `email` (unique). No se requieren más.
 - **Conservación:** **no se borra**; desactivar es `is_active=0` + `deactivated_at`.
 - **Riesgos de integridad/concurrencia:** desactivar a un usuario con conversaciones asignadas debe resolverse en
@@ -113,7 +117,10 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
   | `created_at`/`updated_at` | `DATETIME` | no | Laravel |
 
 - **PK:** `id`. **Unicidad:** `public_id`; `phone_e164`; `(provider, provider_user_id)`.
-- **CHECK:** `phone_e164 IS NOT NULL OR provider_user_id IS NOT NULL` (al menos una identidad).
+- **CHECK:** `phone_e164 IS NOT NULL OR provider_user_id IS NOT NULL` (al menos una identidad). Implementado
+  como restricción de base de datos **solo en MySQL** (`contacts_identity_check`); SQLite no soporta
+  `ALTER TABLE ... ADD CHECK`, por lo que en las pruebas SQLite la regla se ejercita como validación de
+  aplicación (pendiente) y el test correspondiente queda marcado como `skipped`.
 - **Índices:** `public_id` (unique), `phone_e164` (unique), `(provider, provider_user_id)` (unique). La búsqueda
   por teléfono usa el índice único; búsquedas por sufijo no son indexables (se documenta y se limita).
 - **Conservación:** **no se borra** mientras existan conversaciones. Política de retención/anonimización pendiente
@@ -167,6 +174,7 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
   |---|---|---|---|
   | `id` | `BIGINT UNSIGNED` | no | PK; orden cronológico por conversación |
   | `conversation_id` | `BIGINT UNSIGNED` | no | FK → `conversations.id` |
+  | `sent_by_user_id` | `BIGINT UNSIGNED` | sí | FK → `users.id`; responsable que envía un saliente; `NULL` en entrantes o automatización |
   | `direction` | `VARCHAR(10)` | no | `inbound` \| `outbound` |
   | `type` | `VARCHAR(20)` | no | `text`, `image`, `audio`, `video`, `document`, `sticker`, `location`, `contacts`, `template`, `system`, `unknown` |
   | `body` | `TEXT` | sí | Texto/caption; puede ser nulo (p. ej. multimedia sin texto) |
@@ -184,7 +192,8 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
   | `created_at`/`updated_at` | `DATETIME` | no | Laravel |
 
 - **PK:** `id`. **Unicidad:** `provider_message_id` (cuando no nulo); `idempotency_key` (cuando no nulo).
-- **FK:** `conversation_id` → `conversations.id` `ON DELETE RESTRICT`.
+- **FK:** `conversation_id` → `conversations.id` `ON DELETE RESTRICT`;
+  `sent_by_user_id` → `users.id` `ON DELETE SET NULL` (autor del saliente; `NULL` si sistema/automatización).
 - **Índices:** `(conversation_id, id)` para **keyset pagination** del historial; únicos de arriba para dedupe/idempotencia.
   Índice operativo por `(processing_status, last_error_at)` para reintentos/atascos.
 - **Conservación:** **no se borra** por acción de usuario; retención por política ([DD-005](design-decisions-pending.md#dd-005)).
@@ -291,6 +300,10 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 | Mensajes a reintentar / atascados | `processing_status = ? ORDER BY last_error_at` | `(processing_status, last_error_at)` |
 | Trazas de un recurso | `resource_type = ? AND resource_id = ?` | `(resource_type, resource_id, created_at)` |
 
+- **Nota (DD-001, 2026-10-12):** en el MVP la **visibilidad de lectura es total** para los roles operativos
+  (`admin` y `agent`); las consultas «Mis conversaciones» y «Sin asignar» de la tabla justifican índices y describen
+  patrones de consulta futuros (filtrado por responsable), **no** la política de visibilidad vigente. Ver
+  [permission-matrix §3](../security/permission-matrix.md#3-política-de-visibilidad-de-conversaciones-mvp).
 - **Paginación:** **keyset/cursor** (no `OFFSET`) en historial de mensajes y en listados grandes.
 - **No se añaden** índices «por si acaso»; cada índice responde a una consulta real de la tabla. En el volumen del
   MVP (3–10 usuarios, un número) el impacto de escritura es despreciable, pero se evita redundancia.
@@ -298,8 +311,8 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 ## 6. Integridad y concurrencia
 
 - **Relaciones:** `contacts 1—N conversations` (con `UNIQUE(contact_id)`, hoy es `1—1`), `conversations 1—N messages`,
-  `users 1—N conversations` (responsable, nullable), `users 1—N audit_logs`. FKs con `RESTRICT` en historial;
-  `SET NULL` en responsables/actores.
+  `users 1—N conversations` (responsable, nullable), `users 1—N messages` (autor del saliente, nullable),
+  `users 1—N audit_logs`. FKs con `RESTRICT` en historial; `SET NULL` en responsables/actores.
 - **Unicidad de identificadores externos:** `messages.provider_message_id`, `contacts.(provider,provider_user_id)`,
   `webhook_events.external_event_id` — únicos **solo cuando existen** (se admiten múltiples `NULL`).
 - **Conservación del historial:** **sin borrados en cascada** sobre `conversations`, `messages` ni `audit_logs`.
@@ -353,6 +366,7 @@ erDiagram
     messages {
         BIGINT id PK
         BIGINT conversation_id FK
+        BIGINT sent_by_user_id FK "autor saliente, nullable"
         VARCHAR direction
         VARCHAR type
         TEXT body
@@ -399,6 +413,7 @@ erDiagram
     contacts ||--|| conversations : "tiene (S1: una)"
     conversations ||--o{ messages : "contiene"
     users ||--o{ conversations : "asignada a (opcional)"
+    users ||--o{ messages : "autor (saliente, opcional)"
     users ||--o{ audit_logs : "actor (opcional)"
     whatsapp_accounts ||--o{ messages : "contexto de proveedor (logico)"
 ```
@@ -412,6 +427,13 @@ erDiagram
 Este documento **no las resuelve**; remite a [`design-decisions-pending.md`](design-decisions-pending.md):
 identidad de contacto (DD-009), JSON público/ULID (DD-008), mono-empresa (DD-004), retención/PII (DD-005),
 media (DD-006), secretos (DD-007), `whatsapp_accounts` (DD-010), idempotencia de webhooks (DD-011).
+
+**Aprobadas el 2026-10-10** y aplicadas en la Tarea 03: DD-004 (mono-empresa implícita), DD-008 (ULID),
+DD-009 (identidad por `provider + provider_user_id`) y la atribución del saliente (`messages.sent_by_user_id`).
+Además se aprobaron como decisiones de comportamiento DD-002 (desactivación → sin asignar en transacción) y DD-014
+(asignación); se aplicarán con la capa de autorización. DD-001 (visibilidad) fue **revisada el 2026-10-12 (TAREA 05)**:
+en el MVP, `admin` y `agent` consultan todas las conversaciones (ver
+[DD-001](design-decisions-pending.md#dd-001) y [permission-matrix §3](../security/permission-matrix.md#3-política-de-visibilidad-de-conversaciones-mvp)).
 
 ## 9. Riesgos residuales
 
