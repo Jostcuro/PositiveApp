@@ -25,15 +25,18 @@ Positive gestiona de forma centralizada las conversaciones de un único número 
 
 - API REST versionada bajo `/api/v1`.
 - Contratos de solicitud/respuesta explícitos y coherentes entre frontend y backend.
-- Formato de error consistente y sin filtrado de detalles internos.
-- La configuración de CORS en desarrollo es una tarea pendiente hasta que existan endpoints reales; en esta fase el frontend y el backend **no se comunican todavía**.
+- Formato de error consistente y sin filtrado de detalles internos (los recursos se envuelven en `data`).
+- Autenticación por **sesión *stateful* de Sanctum** (cookie + CSRF); ver [ADR-004](../decisions/ADR-004-authentication-sanctum.md).
+- En desarrollo, la SPA llama a rutas relativas (`/api`, `/sanctum`) y Vite las reenvía al backend, de modo que
+  comparten origen; el CORS y los dominios *stateful* se configuran por entorno.
 
 ## Base de datos
 
 - MySQL 8.4 LTS.
 - En desarrollo local corre en un contenedor Docker (ver [setup](../development/setup.md)) para reproducibilidad y evitar instalaciones de sistema.
-- El modelo de datos propuesto (entidades, relaciones, índices, unicidad y reglas de conservación) está en
-  [data-model](data-model.md). Las migraciones aún **no** se han implementado.
+- El modelo de datos (entidades, relaciones, índices, unicidad y reglas de conservación) está implementado:
+  [data-model](data-model.md) describe las decisiones y `backend/database/migrations` contiene las migraciones
+  (Tarea 03).
 
 ## Principio de monolito modular
 
@@ -61,7 +64,13 @@ El diseño técnico del MVP se documenta en:
 - [Matriz de permisos](../security/permission-matrix.md): autorización por rol, visibilidad y anti-IDOR.
 - [Decisiones pendientes](design-decisions-pending.md): supuestos y decisiones aún sin aprobar.
 
-Estos documentos son **propuesta de diseño**, no implementación. No existen migraciones ni módulos funcionales.
+Estos documentos son **propuesta de diseño**, no implementación; revisar las notas de estado de cada uno. En la
+Tarea 03 se implementó el **modelo de datos** (migraciones en `backend/database/migrations`, modelos en
+`backend/app/Models` y pruebas en `backend/tests/Feature/Database`). En la Tarea 05 se implementó la
+**autenticación y la autorización base** (endpoints `/api/v1/auth/*`, [ADR-004](../decisions/ADR-004-authentication-sanctum.md);
+autorización por rol conforme a [DD-001](../architecture/design-decisions-pending.md#dd-001) y a la
+[matriz de permisos](../security/permission-matrix.md)). Los módulos de conversaciones, la interfaz de atención
+sobre datos reales y la integración con Meta siguen sin implementar.
 
 ## Límites del MVP
 

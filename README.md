@@ -4,9 +4,15 @@ Plataforma web para que los empleados de una empresa gestionen de forma centrali
 
 ## Estado del proyecto
 
-Fase de **preparación del repositorio y entorno de desarrollo** (Tarea 01). Todavía **no** existen módulos funcionales (contactos, conversaciones, mensajería, autenticación ni integración con WhatsApp).
+Fase de **base técnica en curso**:
 
-El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado como propuesta en `docs/architecture/` y `docs/security/`; tampoco está implementado.
+- **Backend (Tarea 03):** modelo de datos implementado: migraciones, modelos Eloquent y pruebas de esquema, relaciones y restricciones en `backend/`.
+- **Frontend (Tarea 04):** fundación implementada: tema centralizado MUI, layout responsive y pantalla de demostración de la bandeja de conversaciones (`/inbox`) con datos ficticios. Ver [ADR-003](docs/decisions/ADR-003-frontend-foundation.md).
+- **Autenticación y autorización (Tarea 05):** login/logout/sesión con **Laravel Sanctum** (cookies de sesión SPA), roles `admin`/`agent`, autorización base y guarda de rutas en la SPA. Ver [ADR-004](docs/decisions/ADR-004-authentication-sanctum.md).
+
+Todavía **no** existen los módulos de negocio (gestión de contactos/conversaciones, mensajería ni integración con WhatsApp). No hay registro público, restablecimiento de contraseña ni UI de administración de usuarios. El envío de mensajes en la bandeja está deshabilitado hasta conectar backend e integración.
+
+El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado en `docs/architecture/` y `docs/security/`. El modelo de datos ya está materializado; los estados y permisos se aplicarán con la lógica de negocio y la autorización.
 
 > **Integración con Meta: pendiente y bloqueante.** No se conectará el número empresarial real, no se enviarán mensajes reales ni se solicitarán credenciales hasta completar la validación descrita en [`docs/integrations/meta-integration-pending.md`](docs/integrations/meta-integration-pending.md).
 
@@ -14,10 +20,10 @@ El **diseño técnico** del MVP (modelo de datos, estados y permisos) está docu
 
 | Capa | Tecnología | Versión documentada |
 |---|---|---|
-| Frontend | React + TypeScript (Vite) | React 19, Vite 8 — ver [ADR-002](docs/decisions/ADR-002-development-toolchain.md) |
+| Frontend | React + TypeScript (Vite), Material UI, React Router | React 19, Vite 8 — ver [ADR-002](docs/decisions/ADR-002-development-toolchain.md) y [ADR-003](docs/decisions/ADR-003-frontend-foundation.md) |
 | Backend | Laravel + PHP | Laravel 13, PHP 8.4 |
 | Base de datos | MySQL | 8.4 LTS (dev en contenedor Docker) |
-| Comunicación | API REST versionada | `/api/v1` |
+| Comunicación | API REST versionada (Sanctum, cookies de sesión SPA) | `/api/v1` — ver [ADR-004](docs/decisions/ADR-004-authentication-sanctum.md) |
 | Procesamiento asíncrono | Colas de Laravel | cuando corresponda |
 
 La matriz completa de versiones y sus motivos está en [ADR-002](docs/decisions/ADR-002-development-toolchain.md).

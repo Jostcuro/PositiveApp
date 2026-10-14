@@ -9,7 +9,7 @@
 
 | ID | Tema | Bloquea |
 |---|---|---|
-| [DD-001](#dd-001) | Visibilidad de conversaciones | implementación |
+| [DD-001](#dd-001) | Visibilidad de conversaciones | ninguno (actualizado 2026-10-12) |
 | [DD-002](#dd-002) | Desactivar usuario con conversaciones asignadas | implementación |
 | [DD-003](#dd-003) | Significado operativo de `pending` | implementación |
 | [DD-004](#dd-004) | Mono-empresa y evolución a SaaS | ninguno (documentado) |
@@ -21,7 +21,7 @@
 | [DD-010](#dd-010) | `whatsapp_accounts` en el MVP | ninguno (revisable) |
 | [DD-011](#dd-011) | Envío de resultado incierto y reconciliación | integración real |
 | [DD-012](#dd-012) | Límite de reintentos y backoff | implementación |
-| [DD-013](#dd-013) | Autenticación y sesiones | implementación |
+| [DD-013](#dd-013) | Autenticación y sesiones | ninguno (implementado 2026-10-12) |
 | [DD-014](#dd-014) | Reglas de asignación y reasignación | implementación |
 | [DD-015](#dd-015) | Modalidad de integración con Meta | integración real |
 
@@ -31,11 +31,18 @@
 ### DD-001 — Visibilidad de conversaciones
 - **Pregunta:** ¿qué conversaciones ve cada rol?
 - **Opciones:** (a) `admin` ve todo; `agent` ve sin asignar + propias · (b) `agent` ve solo las propias (debe tomar para ver) · (c) todos ven todo.
-- **Recomendación provisional:** (a). Detalle en [permission-matrix §3](../security/permission-matrix.md#3-política-de-visibilidad-de-conversaciones-propuesta).
+- **Recomendación provisional:** (a). Detalle en [permission-matrix §3](../security/permission-matrix.md#3-política-de-visibilidad-de-conversaciones-mvp).
 - **Decisión (2026-10-10):** aprobada la opción (a): `admin` ve todo; `agent` ve sin asignar + propias.
+- **Actualización (2026-10-12) — TAREA 05:** decisión revisada. En el MVP, **`admin` y `agent` pueden consultar
+  todas las conversaciones** de la empresa (opción (c)). **Reemplaza** la regla anterior de DD-001 sobre
+  «sin asignar + propias» para el alcance del MVP. **Motivo:** simplificar la atención compartida cuando varios
+  empleados atienden un único número. **Alcance:** es una regla de **visibilidad de lectura**; **no** concede
+  permisos administrativos (usuarios, roles, configuración), que se mantienen separados y denegados por defecto
+  para `agent`. Iniciar sesión requiere una cuenta **activa**. Implementado en `ConversationPolicy` (TAREA 05).
+  No se implementan restricciones por asignación en esta tarea; podrán introducirse más adelante como decisión nueva.
 - **Consecuencia de errar:** fuga de conversaciones de clientes entre empleados o, al contrario, agentes sin trabajo visible.
 - **Responsable:** responsable de producto.
-- **Bloquea:** implementación de autorización.
+- **Bloquea:** ninguno (decisión revisada e implementada en la autorización base de la TAREA 05).
 
 <a id="dd-002"></a>
 ### DD-002 — Desactivar usuario con conversaciones asignadas
@@ -153,9 +160,13 @@
 - **Opciones:** (a) Sanctum con cookies de sesión SPA (CSRF) · (b) tokens Bearer.
 - **Recomendación provisional:** (a), confirmado por el responsable del producto. Implica dominios *stateful*,
   cookie CSRF, `SameSite`, CORS restringido y rate limiting de login.
+- **Decisión (2026-10-12):** aprobada la opción (a): **Sanctum con cookies de sesión SPA (stateful)**. Implementada
+  en la TAREA 05 (endpoints `/api/v1/auth/{login,me,logout}`, rate limiting, errores genéricos, recuperación de sesión
+  en la SPA y guarda de rutas). Detalle y consecuencias en [ADR-004](../decisions/ADR-004-authentication-sanctum.md).
 - **Consecuencia de errar:** exposición de tokens o vectores CSRF/CORS mal configurados.
 - **Responsable:** arquitectura + seguridad.
-- **Bloquea:** implementación.
+- **Bloquea:** ninguno (decisión aprobada e implementada). Pendiente de la fase de despliegue: `Secure`/`SameSite`
+  de la cookie y CORS de producción.
 
 <a id="dd-014"></a>
 ### DD-014 — Reglas de asignación y reasignación

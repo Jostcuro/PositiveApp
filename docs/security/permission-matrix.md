@@ -1,7 +1,11 @@
 # Matriz de permisos — MVP de Positive
 
-> **Estado:** propuesta. **No implementado.** La política de visibilidad de conversaciones está **pendiente de
-> aprobación del responsable del producto** ([DD-001](design-decisions-pending.md#dd-001)).
+> **Estado:** propuesta. **Parcialmente implementado (TAREA 05).** Implementado hoy: autenticación de sesión SPA
+> (login/logout/me), rate limiting de login y una **autorización base** con `ConversationPolicy` que refleja la
+> política de visibilidad **vigente** ([DD-001](#dd-001), actualizada el 2026-10-12 — ver §3). Pendiente de
+> implementar: **scoping de consultas (anti-IDOR)** y el resto de operaciones de §4, que dependen de que existan
+> los endpoints de conversaciones/contactos (aún no construidos). Roles, visibilidad y desactivación/reasignación
+> ([DD-002], [DD-014]) siguen como decisiones aprobadas.
 > Fuente de estados: [`../architecture/state-machines.md`](../architecture/state-machines.md). Modelo:
 > [`../architecture/data-model.md`](../architecture/data-model.md).
 
@@ -21,25 +25,29 @@
 | Rol | Descripción |
 |---|---|
 | `admin` | Administra usuarios y configuración permitida; supervisa conversaciones según la política aprobada. |
-| `agent` | Atiende conversaciones que le corresponden según la política de visibilidad. |
+| `agent` | Atiende conversaciones; en el MVP puede consultar todas las conversaciones (§3). |
 
 Los roles son **preliminares** hasta aprobar esta matriz.
 
-## 3. Política de visibilidad de conversaciones (propuesta)
+## 3. Política de visibilidad de conversaciones (MVP)
 
-> **[Pendiente de aprobación — DD-001](design-decisions-pending.md#dd-001).** No es un requisito confirmado.
+> **[DD-001](design-decisions-pending.md#dd-001) actualizada el 2026-10-12 (TAREA 05).** En el MVP, **todos los
+> roles operativos consultan todas las conversaciones** de la empresa. **Reemplaza** la regla anterior
+> «`agent`: sin asignar + propias». Implementado en `ConversationPolicy`.
 
-| Rol | Alcance de visibilidad propuesto |
+| Rol | Alcance de visibilidad vigente (MVP) |
 |---|---|
 | `admin` | Puede consultar **todas** las conversaciones del MVP. |
-| `agent` | Conversaciones **sin asignar** y conversaciones **asignadas a sí mismo**. |
-| `agent` | **No** puede acceder a conversaciones asignadas exclusivamente a **otros** agentes. |
+| `agent` | Puede consultar **todas** las conversaciones del MVP. |
 | Cualquier rol operativo | **No** puede leer directamente secretos o tokens de integración. |
 
-- La visibilidad se implementa como **scope de consulta** reutilizable y aplicado a: listado, búsqueda, detalle,
-  historial, envío y consulta de errores.
-- Una conversación que se reasigna a otro agente **deja de ser visible** para el agente anterior (salvo que
-  además cumpla otra condición de visibilidad).
+- La visibilidad de un rol operativo **no** concede permisos administrativos (usuarios, roles, configuración);
+  se mantienen separados y denegados por defecto para `agent` (§4).
+- La asignación (`assigned_user_id`) **no restringe** la lectura en el MVP; se conserva como información de
+  responsabilidad operativa. Las restricciones por asignación podrán introducirse más adelante como decisión nueva.
+- Cuando existan los endpoints, la visibilidad se aplicará como **filtro de consulta** reutilizable en listado,
+  búsqueda, detalle, historial, envío y consulta de errores. Hoy la visibilidad es total para roles operativos
+  (ver §6).
 
 ## 4. Matriz de operaciones
 
@@ -56,7 +64,7 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 | 7 | Consultar contactos | Sí | **Cond.** | Solo los contactos de conversaciones visibles. |
 | 8 | Crear contactos | Sí | **Cond.** | Vía conversación entrante; creación manual evaluar. |
 | 9 | Modificar contactos | Sí | **Cond.** | Solo contactos visibles; evaluar si `agent` puede editar. |
-| 10 | Consultar conversaciones | Sí | **Cond.** | Según §3 (scope). |
+| 10 | Consultar conversaciones | Sí | Sí | §3: visibilidad total para roles operativos en el MVP. |
 | 11 | Asignar/reasignar conversaciones | Sí | **Cond.** | `agent` solo *claim* de **sin asignar** hacia sí mismo; reasignar a otro → solo `admin`. |
 | 12 | Cambiar estado de conversación | Sí | **Cond.** | Solo conversaciones visibles y transición válida. |
 | 13 | Consultar historial de mensajes | Sí | **Cond.** | Solo de conversaciones visibles. |
@@ -72,9 +80,8 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 
 ### 5.1 Desactivar un usuario con conversaciones asignadas
 
-- **[Provisional — DD-002](design-decisions-pending.md#dd-002).** Opciones: (a) dejar las conversaciones
-  **sin asignar** automáticamente; (b) bloquear la desactivación hasta reasignarlas.
-- **Recomendación provisional:** (a) en una **transacción** que además registra auditoría
+- **[Decisión 2026-10-10 — DD-002](design-decisions-pending.md#dd-002).** Aprobada la opción (a): dejar las
+  conversaciones **sin asignar** automáticamente en una **transacción** que además registra auditoría
   (`user.deactivated`, `conversation.unassigned`).
 - Al desactivar, el usuario **no puede** iniciar sesión; no se borra su historial.
 
@@ -85,6 +92,8 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 
 ### 5.3 Reasignación
 
+> **[Decisión 2026-10-10 — DD-014](design-decisions-pending.md#dd-014).** Aprobada la opción (a).
+
 - `admin` puede reasignar a cualquier usuario **activo**.
 - `agent` solo puede **tomar** (claim) una conversación **sin asignar** hacia sí mismo.
 - Reasignar a un usuario **inactivo** se **rechaza**.
@@ -93,13 +102,14 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 
 ### 5.4 Envío de mensajes
 
-- Requiere visibilidad de la conversación (responsable o, según la política, visible).
+- Requiere ser un rol operativo que pueda consultar la conversación (§3: visibilidad total en el MVP).
 - Si el contrato aprueba que `agent` envíe en conversaciones **sin asignar** sin tomarlas, se reflejará aquí; hoy
   la recomendación es que **tomar la conversación** sea requisito para responder.
 
 ## 6. Prevención de fuga de información (anti-IDOR)
 
-- **Listados:** aplicar el scope de visibilidad antes de paginar.
+- **Listados:** aplicar el filtro de visibilidad antes de paginar (hoy total para roles operativos; centralizado
+  para poder restringirlo sin tocar cada endpoint).
 - **Búsqueda:** limitar resultados y filtrar por visibilidad; no exponer el directorio completo de contactos.
 - **Detalle:** revalidar autorización por recurso (no confiar en que el id no se conozca).
 - **Historial y errores:** heredan la visibilidad de su conversación.
@@ -112,13 +122,17 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 ## 7. Aplicación en backend (requisitos de implementación)
 
 - Policies/Gates por recurso y por acción, con comprobación explícita en cada endpoint de `/api/v1`.
-- Un **scope de visibilidad** único y reutilizado en todas las consultas de conversaciones.
+- Un **filtro de visibilidad** único y reutilizado en todas las consultas de conversaciones (hoy total para roles
+  operativos; centralizado para poder restringirse más adelante sin reescribir cada endpoint).
 - **Rate limiting** en autenticación y en endpoints sensibles.
 - **Auditoría** de las acciones marcadas como sensibles en esta matriz.
-- Pruebas obligatorias de **permisos denegados** (un `agent` no accede a lo ajeno) además de los casos válidos.
+- Pruebas obligatorias de **permisos denegados** de las operaciones administrativas (p. ej. un `agent` no puede
+  administrar usuarios, cambiar roles ni modificar la configuración), además de los casos válidos.
 
 ## 8. Referencias
 
-- Visibilidad y asignación pendientes: [`../architecture/design-decisions-pending.md`](../architecture/design-decisions-pending.md).
+- Visibilidad revisada (DD-001) e implementada como autorización base (TAREA 05); desactivación (DD-002) y
+  asignación (DD-014) **decididas** pero pendientes de implementar:
+  [`../architecture/design-decisions-pending.md`](../architecture/design-decisions-pending.md).
 - Transiciones permitidas y quién puede ejecutarlas: [`../architecture/state-machines.md`](../architecture/state-machines.md).
 - Controles técnicos pendientes: [`security-baseline.md`](security-baseline.md).
