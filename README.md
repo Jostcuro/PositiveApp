@@ -4,15 +4,35 @@ Plataforma web para que los empleados de una empresa gestionen de forma centrali
 
 ## Estado del proyecto
 
-Fase de **base técnica en curso**:
+Fase de **base técnica en curso**. Fotografía operativa del estado actual en [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md).
 
-- **Backend (Tarea 03):** modelo de datos implementado: migraciones, modelos Eloquent y pruebas de esquema, relaciones y restricciones en `backend/`.
-- **Frontend (Tarea 04):** fundación implementada: tema centralizado MUI, layout responsive y pantalla de demostración de la bandeja de conversaciones (`/inbox`) con datos ficticios. Ver [ADR-003](docs/decisions/ADR-003-frontend-foundation.md).
+### Implementado
+
+- **Backend (Tarea 03):** modelo de datos: migraciones, modelos Eloquent y pruebas de esquema, relaciones y restricciones en `backend/`.
+- **Frontend (Tarea 04):** fundación de la SPA: tema centralizado MUI y layout responsive. Ver [ADR-003](docs/decisions/ADR-003-frontend-foundation.md).
 - **Autenticación y autorización (Tarea 05):** login/logout/sesión con **Laravel Sanctum** (cookies de sesión SPA), roles `admin`/`agent`, autorización base y guarda de rutas en la SPA. Ver [ADR-004](docs/decisions/ADR-004-authentication-sanctum.md).
+- **Read API de conversaciones y mensajes (Tarea 06B, aceptada):** endpoints `GET /api/v1/conversations`, `/conversations/{public_id}` y `/conversations/{public_id}/messages`, autenticados, autorizados y paginados, sin exponer campos internos. Ver [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md).
+- **Integración del Inbox con el read API (Tarea 07, solo lectura):** la bandeja `/inbox` consume conversaciones, detalle y mensajes reales, con estados de carga/vacío/error, reintento y manejo central de 401. Sin datos ficticios en tiempo de ejecución. Ver [ADR-006](docs/decisions/ADR-006-frontend-inbox-read-integration.md).
 
-Todavía **no** existen los módulos de negocio (gestión de contactos/conversaciones, mensajería ni integración con WhatsApp). No hay registro público, restablecimiento de contraseña ni UI de administración de usuarios. El envío de mensajes en la bandeja está deshabilitado hasta conectar backend e integración.
+### Pendiente
 
-El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado en `docs/architecture/` y `docs/security/`. El modelo de datos ya está materializado; los estados y permisos se aplicarán con la lógica de negocio y la autorización.
+- **Escritura:** asignación/reasignación, cambios de estado y envío de mensajes (outbound) con su autorización.
+- **Paginación en el Inbox:** la UI consume solo la primera página del listado y del historial; faltan controles de página/«cargar más».
+- **Integración entrante real:** webhook y proveedor externo de WhatsApp/Meta (bloqueado, ver más abajo).
+- **Tiempo real:** realtime/polling/WebSockets.
+- Registro público, restablecimiento de contraseña y UI de administración de usuarios.
+- Configuración de producción (cookies `Secure`/`SameSite`, HTTPS, CORS) y despliegue.
+
+### Fuera de alcance actual
+
+- WhatsApp/Meta y Telegram;
+- envío de mensajes y cualquier operación de escritura;
+- polling, WebSockets/Reverb/realtime;
+- infraestructura nueva (Redis, colas, Docker, Nginx).
+
+No hay integración externa real ni operaciones de escritura aunque aparezcan documentadas como diseño.
+
+El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado en `docs/architecture/` y `docs/security/`. El modelo de datos ya está materializado.
 
 > **Integración con Meta: pendiente y bloqueante.** No se conectará el número empresarial real, no se enviarán mensajes reales ni se solicitarán credenciales hasta completar la validación descrita en [`docs/integrations/meta-integration-pending.md`](docs/integrations/meta-integration-pending.md).
 
@@ -48,6 +68,7 @@ La matriz completa de versiones y sus motivos está en [ADR-002](docs/decisions/
 
 ## Documentación
 
+- [Estado del proyecto (fotografía operativa)](docs/PROJECT-STATUS.md)
 - [Arquitectura](docs/architecture/overview.md)
 - [Modelo de datos](docs/architecture/data-model.md)
 - [Máquinas de estados](docs/architecture/state-machines.md)

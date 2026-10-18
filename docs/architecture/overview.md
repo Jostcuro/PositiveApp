@@ -69,8 +69,12 @@ Tarea 03 se implementó el **modelo de datos** (migraciones en `backend/database
 `backend/app/Models` y pruebas en `backend/tests/Feature/Database`). En la Tarea 05 se implementó la
 **autenticación y la autorización base** (endpoints `/api/v1/auth/*`, [ADR-004](../decisions/ADR-004-authentication-sanctum.md);
 autorización por rol conforme a [DD-001](../architecture/design-decisions-pending.md#dd-001) y a la
-[matriz de permisos](../security/permission-matrix.md)). Los módulos de conversaciones, la interfaz de atención
-sobre datos reales y la integración con Meta siguen sin implementar.
+[matriz de permisos](../security/permission-matrix.md)). En la Tarea 06B se implementó la **API de lectura de
+conversaciones y mensajes** (`GET /api/v1/conversations`, `/conversations/{public_id}` y
+`/conversations/{public_id}/messages`; [ADR-005](../decisions/ADR-005-read-api-conversations-messages.md)), de solo
+lectura. En la Tarea 07 se conectó la **bandeja del Inbox** a esa API en modo lectura
+([ADR-006](../decisions/ADR-006-frontend-inbox-read-integration.md)). Las operaciones de escritura y la integración
+con Meta siguen sin implementar.
 
 ## Límites del MVP
 
