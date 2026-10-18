@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { Avatar, Box, Button, Stack, Typography } from '@mui/material'
 import { User } from 'lucide-react'
-import type { Conversation } from '../../data/mockConversations.ts'
+import type { ConversationDetail } from './types.ts'
 import { initials } from '../../utils/initials.ts'
+import { formatListTimestamp } from './format.ts'
 import ConversationStatusChip from '../../components/ConversationStatusChip.tsx'
 
 interface ContactPanelProps {
-  conversation: Conversation
+  conversation: ConversationDetail
 }
 
 function PanelField({ label, children }: { label: string; children: ReactNode }) {
@@ -21,6 +22,8 @@ function PanelField({ label, children }: { label: string; children: ReactNode })
 }
 
 export default function ContactPanel({ conversation }: ContactPanelProps) {
+  const name = conversation.contact.display_name ?? 'Contacto sin nombre'
+
   return (
     <Box
       sx={{
@@ -37,16 +40,16 @@ export default function ContactPanel({ conversation }: ContactPanelProps) {
       }}
     >
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-        <Avatar sx={{ width: 48, height: 48, bgcolor: 'primary.main' }}>
-          {initials(conversation.name)}
-        </Avatar>
+        <Avatar sx={{ width: 48, height: 48, bgcolor: 'primary.main' }}>{initials(name)}</Avatar>
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600 }}>
-            {conversation.name}
+            {name}
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {conversation.description}
-          </Typography>
+          {conversation.contact.phone_e164 && (
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {conversation.contact.phone_e164}
+            </Typography>
+          )}
         </Box>
       </Stack>
 
@@ -55,13 +58,15 @@ export default function ContactPanel({ conversation }: ContactPanelProps) {
           <ConversationStatusChip status={conversation.status} size="medium" />
         </PanelField>
         <PanelField label="Responsable">
-          <Typography variant="body2">{conversation.assignee}</Typography>
-        </PanelField>
-        <PanelField label="Notas">
-          <Typography variant="body2" color="text.secondary">
-            Datos ficticios de demostración. Aquí se mostrará la información del
-            contacto cuando se conecte el backend.
+          <Typography variant="body2">
+            {conversation.assigned_user?.name ?? 'Sin asignar'}
           </Typography>
+        </PanelField>
+        <PanelField label="Abierta">
+          <Typography variant="body2">{formatListTimestamp(conversation.opened_at)}</Typography>
+        </PanelField>
+        <PanelField label="Reaperturas">
+          <Typography variant="body2">{conversation.reopened_count}</Typography>
         </PanelField>
         <Button variant="outlined" disabled startIcon={<User size={16} />}>
           Ver perfil

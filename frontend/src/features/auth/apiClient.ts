@@ -4,6 +4,19 @@ import type { ApiValidationErrors } from './apiError.ts'
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 const CSRF_COOKIE = 'XSRF-TOKEN'
 
+/**
+ * Handler global para respuestas 401. Lo registra `AuthProvider` para
+ * descartar la sesión local una sola vez, sin que cada feature reimplemente el
+ * logout. `null` cuando no hay handler registrado (p. ej. durante el arranque).
+ */
+type UnauthorizedHandler = () => void
+
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler
+}
+
 function readCookie(name: string): string | null {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`))
@@ -74,6 +87,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     : null
 
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.()
+    }
+
     const errorPayload = (payload ?? {}) as ErrorPayload
     throw new ApiError(
       response.status,

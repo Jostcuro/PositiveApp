@@ -1,38 +1,43 @@
 import {
   Avatar,
-  Badge,
   Box,
-  InputAdornment,
+  Button,
+  CircularProgress,
   List,
   ListItemAvatar,
   ListItemButton,
   ListItemText,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material'
-import { Search } from 'lucide-react'
-import type { Conversation } from '../../data/mockConversations.ts'
+import { MessageSquare, RefreshCw } from 'lucide-react'
+import type { AsyncStatus, Conversation } from './types.ts'
 import { initials } from '../../utils/initials.ts'
+import { formatListTimestamp } from './format.ts'
+import { describeError } from './errorMessage.ts'
 import EmptyState from '../../components/EmptyState.tsx'
 
 interface ConversationListProps {
+  status: AsyncStatus
+  error: unknown
   conversations: Conversation[]
-  query: string
   selectedId: string | null
-  onQueryChange: (query: string) => void
-  onSelect: (id: string) => void
+  onSelect: (publicId: string) => void
+  onRetry: () => void
+}
+
+function displayName(conversation: Conversation): string {
+  return conversation.contact.display_name ?? 'Contacto sin nombre'
 }
 
 export default function ConversationList({
+  status,
+  error,
   conversations,
-  query,
   selectedId,
-  onQueryChange,
   onSelect,
+  onRetry,
 }: ConversationListProps) {
-  const hasResults = conversations.length > 0
-
   return (
     <Box
       sx={{
@@ -53,110 +58,94 @@ export default function ConversationList({
           borderColor: 'divider',
         }}
       >
-        <Stack
-          direction="row"
-          sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
-        >
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Bandeja
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Datos de demostración
-          </Typography>
-        </Stack>
-        <TextField
-          fullWidth
-          size="small"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Buscar conversaciones…"
-          slotProps={{
-            input: {
-              'aria-label': 'Buscar conversaciones',
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search size={18} />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Bandeja
+        </Typography>
       </Box>
 
-      <List sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
-        {!hasResults ? (
-          <EmptyState
-            icon={<Search size={32} />}
-            title="Sin resultados"
-            description={
-              query
-                ? `Nada coincide con «${query}».`
-                : 'No hay conversaciones para mostrar.'
-            }
-          />
-        ) : (
-          conversations.map((conversation) => (
-            <ListItemButton
-              key={conversation.id}
-              onClick={() => onSelect(conversation.id)}
-              selected={conversation.id === selectedId}
-              sx={{ mb: 0.5 }}
+      {status === 'loading' && (
+        <Box
+          role="status"
+          aria-live="polite"
+          aria-label="Cargando conversaciones"
+          sx={{ flex: 1, display: 'grid', placeItems: 'center' }}
+        >
+          <CircularProgress />
+        </Box>
+      )}
+
+      {status === 'error' && (
+        <EmptyState
+          icon={<MessageSquare size={32} />}
+          title="No se pudieron cargar las conversaciones"
+          description={describeError(error)}
+          action={
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshCw size={16} />}
+              onClick={onRetry}
             >
-              <ListItemAvatar>
-                <Badge
-                  color="error"
-                  variant="dot"
-                  overlap="circular"
-                  invisible={!conversation.unread}
-                >
-                  <Avatar sx={{ bgcolor: 'primary.main' }}>
-                    {initials(conversation.name)}
-                  </Avatar>
-                </Badge>
-              </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: 'center', justifyContent: 'space-between' }}
-                  >
-                    <Typography
-                      variant="subtitle2"
-                      noWrap
-                      sx={{ fontWeight: conversation.unread ? 700 : 500 }}
+              Reintentar
+            </Button>
+          }
+        />
+      )}
+
+      {status === 'success' && conversations.length === 0 && (
+        <EmptyState
+          icon={<MessageSquare size={32} />}
+          title="No hay conversaciones"
+          description="Cuando existan conversaciones aparecerán aquí."
+        />
+      )}
+
+      {status === 'success' && conversations.length > 0 && (
+        <List sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
+          {conversations.map((conversation) => {
+            const name = displayName(conversation)
+
+            return (
+              <ListItemButton
+                key={conversation.id}
+                onClick={() => onSelect(conversation.id)}
+                selected={conversation.id === selectedId}
+                sx={{ mb: 0.5 }}
+              >
+                <ListItemAvatar>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>{initials(name)}</Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: 'center', justifyContent: 'space-between' }}
                     >
-                      {conversation.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap>
-                      {conversation.lastAt}
-                    </Typography>
-                  </Stack>
-                }
-                secondary={
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: 'center', justifyContent: 'space-between' }}
-                  >
+                      <Typography variant="subtitle2" noWrap sx={{ fontWeight: 500 }}>
+                        {name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {formatListTimestamp(conversation.last_message_at)}
+                      </Typography>
+                    </Stack>
+                  }
+                  secondary={
                     <Typography
                       variant="body2"
                       color="text.secondary"
                       noWrap
-                      sx={{ flex: 1, minWidth: 0 }}
+                      sx={{ display: 'block' }}
                     >
-                      {conversation.lastMessage}
+                      {conversation.last_message?.body ?? 'Sin mensajes'}
                     </Typography>
-                    {conversation.unread > 0 && (
-                      <Badge badgeContent={conversation.unread} color="primary" />
-                    )}
-                  </Stack>
-                }
-              />
-            </ListItemButton>
-          ))
-        )}
-      </List>
+                  }
+                />
+              </ListItemButton>
+            )
+          })}
+        </List>
+      )}
     </Box>
   )
 }

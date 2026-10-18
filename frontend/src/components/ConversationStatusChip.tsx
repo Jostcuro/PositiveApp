@@ -1,6 +1,6 @@
 import type { ChipProps } from '@mui/material'
 import { Chip } from '@mui/material'
-import type { ConversationStatus } from '../data/mockConversations.ts'
+import type { ConversationStatus } from '../features/inbox/types.ts'
 
 const LABELS: Record<ConversationStatus, string> = {
   open: 'Abierta',

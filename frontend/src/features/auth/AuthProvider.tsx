@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { AuthContext } from './authContext.ts'
 import type { AuthStatus } from './authContext.ts'
 import { fetchCurrentUser, loginUser, logoutUser } from './authApi.ts'
+import { setUnauthorizedHandler } from './apiClient.ts'
 import type { AuthUser } from './types.ts'
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
@@ -34,6 +35,16 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Descarta la sesión local sin llamadas de red. Se reutiliza tanto en el
+   * cierre de sesión explícito (tras el POST) como en el manejo central de 401,
+   * evitando bucles si el propio POST de logout devuelve 401.
+   */
+  const resetSession = useCallback(() => {
+    setUser(null)
+    setStatus('unauthenticated')
+  }, [])
+
   const login = useCallback(async (email: string, password: string) => {
     const authenticated = await loginUser(email, password)
     setUser(authenticated)
@@ -44,10 +55,19 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logoutUser()
     } finally {
-      setUser(null)
-      setStatus('unauthenticated')
+      resetSession()
     }
-  }, [])
+  }, [resetSession])
+
+  /**
+   * Manejo central de 401: cualquier petición autenticada que reciba 401
+   * descarta la sesión local (una sola vía, sin logout por feature). `resetSession`
+   * es idempotente, por lo que varios 401 no provocan múltiples redirecciones.
+   */
+  useEffect(() => {
+    setUnauthorizedHandler(resetSession)
+    return () => setUnauthorizedHandler(null)
+  }, [resetSession])
 
   const value = useMemo(() => ({ user, status, login, logout }), [user, status, login, logout])
 

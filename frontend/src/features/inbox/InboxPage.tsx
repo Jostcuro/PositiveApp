@@ -1,36 +1,36 @@
-import { useMemo, useState } from 'react'
+import { useCallback } from 'react'
 import { Box, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
-import { MOCK_CONVERSATIONS } from '../../data/mockConversations.ts'
 import ContactPanel from './ContactPanel.tsx'
 import ConversationList from './ConversationList.tsx'
 import ConversationThread from './ConversationThread.tsx'
+import { useInboxData } from './useInboxData.ts'
 
 export default function InboxPage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const isWide = useMediaQuery(theme.breakpoints.up('lg'))
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return MOCK_CONVERSATIONS
-    return MOCK_CONVERSATIONS.filter((conversation) =>
-      `${conversation.name} ${conversation.description} ${conversation.lastMessage}`
-        .toLowerCase()
-        .includes(q),
-    )
-  }, [query])
+  const {
+    list,
+    reloadList,
+    detail,
+    reloadDetail,
+    messages,
+    reloadMessages,
+    selectedPublicId,
+    activePublicId,
+    selectConversation,
+  } = useInboxData()
 
-  const hasExplicitSelection =
-    selectedId !== null && filtered.some((conversation) => conversation.id === selectedId)
-  const activeId = hasExplicitSelection ? selectedId : (filtered[0]?.id ?? null)
-  const activeConversation =
-    MOCK_CONVERSATIONS.find((conversation) => conversation.id === activeId) ?? null
+  const retryDetail = useCallback(() => {
+    reloadDetail()
+    reloadMessages()
+  }, [reloadDetail, reloadMessages])
 
-  const showThread = activeConversation !== null && (!isMobile || hasExplicitSelection)
-  const showContactPanel = !isMobile && isWide && showThread && activeConversation !== null
+  const hasActive = activePublicId !== null
+  const showThread = hasActive && (!isMobile || selectedPublicId !== null)
+  const showContactPanel = !isMobile && isWide && showThread && detail.status === 'success'
 
   return (
     <Box
@@ -53,16 +53,17 @@ export default function InboxPage() {
           }}
         >
           <ConversationList
-            conversations={filtered}
-            query={query}
-            selectedId={activeId}
-            onQueryChange={setQuery}
-            onSelect={setSelectedId}
+            status={list.status}
+            error={list.error}
+            conversations={list.data ?? []}
+            selectedId={activePublicId}
+            onSelect={selectConversation}
+            onRetry={reloadList}
           />
         </Box>
       )}
 
-      {showThread && activeConversation && (
+      {showThread && (
         <Box
           sx={{
             flexGrow: 1,
@@ -73,15 +74,17 @@ export default function InboxPage() {
           }}
         >
           <ConversationThread
-            conversation={activeConversation}
-            onBack={isMobile ? () => setSelectedId(null) : undefined}
+            detail={detail}
+            messages={messages}
+            onRetry={retryDetail}
+            onBack={isMobile ? () => selectConversation(null) : undefined}
           />
         </Box>
       )}
 
-      {showContactPanel && activeConversation && (
+      {showContactPanel && detail.data && (
         <Box sx={{ width: 300, flexShrink: 0, display: 'flex', minHeight: 0 }}>
-          <ContactPanel conversation={activeConversation} />
+          <ContactPanel conversation={detail.data} />
         </Box>
       )}
     </Box>

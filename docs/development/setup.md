@@ -123,7 +123,7 @@ npm install
 npm run dev        # servidor de desarrollo (SPA en http://localhost:5173)
 ```
 
-La SPA exige iniciar sesión: muestra **`/login`** mientras no haya sesión y, tras autenticarse, la bandeja **`/inbox`** (con datos ficticios de demostración). El tema (Material UI) y el layout están en [ADR-003](../decisions/ADR-003-frontend-foundation.md); la autenticación en [ADR-004](../decisions/ADR-004-authentication-sanctum.md).
+La SPA exige iniciar sesión: muestra **`/login`** mientras no haya sesión y, tras autenticarse, la bandeja **`/inbox`**, que consume la read API real (solo lectura). El tema (Material UI) y el layout están en [ADR-003](../decisions/ADR-003-frontend-foundation.md); la autenticación en [ADR-004](../decisions/ADR-004-authentication-sanctum.md); la integración del Inbox en [ADR-006](../decisions/ADR-006-frontend-inbox-read-integration.md).
 
 En desarrollo, Vite reenvía `/api` y `/sanctum` a `http://localhost:8000` (configurado en `frontend/vite.config.ts`), de modo que el frontend y el backend comparten origen y las cookies de sesión de Sanctum funcionan sin CORS abierto.
 
@@ -155,10 +155,10 @@ cd frontend && npm run dev         # SPA en http://localhost:5173 (proxy /api y 
 
 ## Pendiente
 
-- Módulos de negocio (contactos/conversaciones, mensajería). El **modelo de datos** ya está implementado
-  (`php artisan migrate` crea las tablas del MVP, Tarea 03). El **frontend** ya tiene la fundación funcional
-  (tema, layout y bandeja de demostración, Tarea 04) y la **autenticación** está implementada de extremo a extremo
-  con Sanctum y *proxy* de Vite (Tarea 05).
+- Mensajería saliente y operaciones de escritura (asignación, cambios de estado). El **modelo de datos** ya está
+  implementado (`php artisan migrate` crea las tablas del MVP, Tarea 03). El **frontend** tiene tema, layout y la
+  bandeja conectada en **solo lectura** al read API (Tareas 04 y 07); la **autenticación** está implementada de
+  extremo a extremo con Sanctum y *proxy* de Vite (Tarea 05). La UI no pagina más allá de la primera página.
 - Registro de usuarios, restablecimiento de contraseña y UI de administración de usuarios (fuera de la Tarea 05).
 - `Secure`/`SameSite` de cookies y CORS restringido de **producción**; *driver* y caducidad de sesión (fase de despliegue).
 - Validación de Meta (ver [`docs/integrations/meta-integration-pending.md`](../integrations/meta-integration-pending.md)).

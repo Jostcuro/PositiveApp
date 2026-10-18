@@ -4,6 +4,10 @@
 - **Fecha:** 2026-10-11
 - **Decisión relacionada:** [ADR-001 — Arquitectura inicial del MVP](ADR-001-initial-architecture.md), [ADR-002 — Toolchain y versiones del entorno de desarrollo](ADR-002-development-toolchain.md)
 
+> **Actualización (T07, 2026-10-17):** los datos de demostración descritos en esta ADR
+> (`src/data/mockConversations.ts`) fueron sustituidos por la integración real de lectura descrita en
+> [ADR-006](ADR-006-frontend-inbox-read-integration.md). El resto de decisiones de esta ADR siguen vigentes.
+
 ## Contexto
 
 El frontend de Positive (React 19 + TypeScript, Scaffold `create-vite react-ts`) existe y ya tiene decididas las versiones de la toolchain (ADR-002). Falta definir la capa de UI y enrutado sobre la que se construirán las pantallas de atención. El MVP necesita una interfaz sencilla y de bajo acoplamiento para que varios empleados atiendan conversaciones desde una vista compartida, sin introducir ahora dependencias de estado global, consultas a API ni formularios complejos.
