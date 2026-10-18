@@ -1,11 +1,14 @@
 # Matriz de permisos — MVP de Positive
 
-> **Estado:** propuesta. **Parcialmente implementado (TAREA 05).** Implementado hoy: autenticación de sesión SPA
-> (login/logout/me), rate limiting de login y una **autorización base** con `ConversationPolicy` que refleja la
-> política de visibilidad **vigente** ([DD-001](#dd-001), actualizada el 2026-10-12 — ver §3). Pendiente de
-> implementar: **scoping de consultas (anti-IDOR)** y el resto de operaciones de §4, que dependen de que existan
-> los endpoints de conversaciones/contactos (aún no construidos). Roles, visibilidad y desactivación/reasignación
-> ([DD-002], [DD-014]) siguen como decisiones aprobadas.
+> **Estado:** propuesta. **Parcialmente implementado (TAREA 05 y TAREA 06B).** Implementado hoy:
+> autenticación de sesión SPA (login/logout/me), rate limiting de login, una **autorización base** con
+> `ConversationPolicy` que refleja la política de visibilidad **vigente** ([DD-001](#dd-001), actualizada
+> el 2026-10-12 — ver §3) y la **API de lectura de conversaciones y mensajes** (T06B) con **scoping
+> centralizado** (`Conversation::scopeVisibleTo`) y autorización por recurso
+> ([ADR-005](../decisions/ADR-005-read-api-conversations-messages.md)). Pendiente de implementar: el
+> resto de operaciones de §4 (asignación, estados, envío), que requieren endpoints de escritura aún no
+> construidos. Roles, visibilidad y desactivación/reasignación ([DD-002], [DD-014]) siguen como
+> decisiones aprobadas.
 > Fuente de estados: [`../architecture/state-machines.md`](../architecture/state-machines.md). Modelo:
 > [`../architecture/data-model.md`](../architecture/data-model.md).
 
@@ -122,8 +125,12 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 ## 7. Aplicación en backend (requisitos de implementación)
 
 - Policies/Gates por recurso y por acción, con comprobación explícita en cada endpoint de `/api/v1`.
+  Implementado: `ConversationPolicy` (`viewAny`/`view`) y `Gate::authorize` en cada endpoint de lectura.
 - Un **filtro de visibilidad** único y reutilizado en todas las consultas de conversaciones (hoy total para roles
-  operativos; centralizado para poder restringirse más adelante sin reescribir cada endpoint).
+  operativos; centralizado para poder restringirse más adelante sin reescribir cada endpoint). Implementado como
+  `Conversation::scopeVisibleTo(User)`, aplicado en el listado; el acceso por recurso se revalida con la policy. El
+  filtro centralizado **no** sustituye a la policy: `ConversationPolicy::view()` debe reflejar la misma regla, ya que
+  el listado (paginado) no puede aplicar una comprobación por fila después de recortar la página.
 - **Rate limiting** en autenticación y en endpoints sensibles.
 - **Auditoría** de las acciones marcadas como sensibles en esta matriz.
 - Pruebas obligatorias de **permisos denegados** de las operaciones administrativas (p. ej. un `agent` no puede
