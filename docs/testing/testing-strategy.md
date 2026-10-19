@@ -47,7 +47,9 @@
   conversación sin mensajes, contacto con campos opcionales nulos, `body` nulo, no-exposición de campos internos
   (de mensaje y de proveedor) ni de `phone_e164` en el listado, orden determinista (`last_message_at DESC, id DESC`
   con nulos al final) y navegación por páginas sin solapamientos ni omisiones.
-- **Paginación keyset** del historial: recorrido completo siguiendo `meta.next_cursor` sin duplicados ni omisiones.
+- **Paginación keyset** del historial (`id DESC`, más reciente primero): la primera página contiene los
+  mensajes más recientes y el recorrido completo siguiendo `meta.next_cursor` avanza hacia los más antiguos,
+  sin duplicados ni omisiones. Un mensaje nuevo aparece en la primera página tras insertarse.
 - **Rendimiento** (`ConversationQueryPerformanceTest`): el número de consultas es **constante** al crecer el número
   de filas (evita N+1), tanto en el listado como en el historial.
 - **Contrato endurecido** (`ConversationReadContractTest`): parámetros de ordenación del cliente ignorados, `status`

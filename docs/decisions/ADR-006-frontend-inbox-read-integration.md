@@ -62,8 +62,14 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
 
 ## Consecuencias y limitaciones
 
-- **Solo primera página:** la UI consume la primera página del listado (offset) y del historial (keyset). Los metadatos
-  de paginación están tipados, pero no hay controles de «página siguiente» ni *scroll* infinito todavía.
+- **Listado en primera página; historial paginable hacia atrás:** la UI consume la primera página del
+  listado (offset). Del historial (keyset `id DESC`, ver [ADR-005](ADR-005-read-api-conversations-messages.md))
+  consume la primera página (mensajes **más recientes**, presentados en orden cronológico antiguo → reciente)
+  y permite cargar páginas anteriores con «Cargar mensajes anteriores», anteponiéndolas y conservando la
+  posición de lectura. No hay controles de «página siguiente» para el listado ni *scroll* infinito.
+- **Historial ordenado en el cliente:** el backend entrega `id DESC`; el hook de mensajes invierte cada
+  página para presentarla cronológicamente, deduplica por `message.id` y descarta respuestas tardías al
+  cambiar de conversación.
 - **Sin búsqueda ni filtros:** el Inbox muestra la lista tal como la entrega la API.
 - **`assigned_user`:** se muestra el nombre; su `id` interno no se usa en URLs ni como identidad pública. Un cambio de
   contrato exige una tarea backend explícita.
@@ -71,5 +77,6 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
   duplican esa lógica.
 - **Solo lectura:** el compositor sigue deshabilitado; no se habilitan acciones no soportadas por la API.
 - **Pruebas:** `InboxPage.test.tsx` cubre lista, selección por defecto, cambio de conversación, estado vacío, error y
-  reintento, 404, respuestas obsoletas, compositor deshabilitado y comportamiento móvil. `App.test.tsx` cubre el 401
-  central y el layout autenticado.
+  reintento, 404, respuestas obsoletas, compositor deshabilitado, comportamiento móvil, orden cronológico,
+  carga de mensajes anteriores (prepend, dedupe, control que desaparece), no concurrencia de peticiones y
+  conservación de la posición de lectura. `App.test.tsx` cubre el 401 central y el layout autenticado.

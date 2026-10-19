@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import {
   Box,
   Button,
@@ -9,6 +10,7 @@ import {
 } from '@mui/material'
 import { ArrowLeft, RefreshCw, Send } from 'lucide-react'
 import type { AsyncState, ConversationDetail, Message } from './types.ts'
+import type { MessagesPagination } from './useConversationMessages.ts'
 import { formatMessageTime } from './format.ts'
 import { describeError, isNotFound } from './errorMessage.ts'
 import ConversationStatusChip from '../../components/ConversationStatusChip.tsx'
@@ -16,9 +18,14 @@ import EmptyState from '../../components/EmptyState.tsx'
 
 interface ConversationThreadProps {
   detail: AsyncState<ConversationDetail>
-  messages: AsyncState<Message[]>
+  messages: MessagesPagination
   onRetry: () => void
   onBack?: () => void
+}
+
+interface ScrollAnchor {
+  scrollHeight: number
+  scrollTop: number
 }
 
 function MessageBubble({ message }: { message: Message }) {
@@ -81,6 +88,49 @@ export default function ConversationThread({
   const name = conversation?.contact.display_name ?? 'Conversación'
   const phone = conversation?.contact.phone_e164 ?? null
 
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const scrollAnchorRef = useRef<ScrollAnchor | null>(null)
+  const lastCountRef = useRef(0)
+
+  // El historial llega paginado `id DESC` (más recientes primero). Al cargar una
+  // página anterior, conservamos la posición de lectura: registramos la altura y
+  // el desplazamiento antes del prepend y los ajustamos por la diferencia. Si no
+  // hay ancla, mantenemos la vista en los mensajes más recientes (abajo).
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (element === null) return
+
+    const count = messages.state.data?.length ?? 0
+    const previousCount = lastCountRef.current
+    lastCountRef.current = count
+
+    const anchor = scrollAnchorRef.current
+    if (anchor !== null) {
+      // Solo consumimos el ancla cuando llega la página anterior (crece el número
+      // de mensajes); así no la gastamos en un re-render de solo carga.
+      if (count > previousCount) {
+        scrollAnchorRef.current = null
+        element.scrollTop = element.scrollHeight - anchor.scrollHeight + anchor.scrollTop
+        return
+      }
+      // La carga terminó sin agregar mensajes: descartamos el ancla.
+      if (!messages.loadingOlder) {
+        scrollAnchorRef.current = null
+      }
+      return
+    }
+
+    element.scrollTop = element.scrollHeight
+  }, [messages.state.data, messages.loadingOlder])
+
+  const handleLoadOlder = () => {
+    const element = scrollRef.current
+    if (element !== null) {
+      scrollAnchorRef.current = { scrollHeight: element.scrollHeight, scrollTop: element.scrollTop }
+    }
+    messages.loadOlder()
+  }
+
   const renderBody = () => {
     if (detail.status === 'error') {
       if (isNotFound(detail.error)) {
@@ -100,17 +150,17 @@ export default function ConversationThread({
       )
     }
 
-    if (messages.status === 'error') {
+    if (messages.state.status === 'error') {
       return (
         <EmptyState
           title="No se pudieron cargar los mensajes"
-          description={describeError(messages.error)}
+          description={describeError(messages.state.error)}
           action={<RetryButton onRetry={onRetry} />}
         />
       )
     }
 
-    if (detail.status === 'loading' || messages.status === 'loading') {
+    if (detail.status === 'loading' || messages.state.status === 'loading') {
       return (
         <Box
           role="status"
@@ -123,7 +173,7 @@ export default function ConversationThread({
       )
     }
 
-    if ((messages.data ?? []).length === 0) {
+    if ((messages.state.data ?? []).length === 0) {
       return (
         <EmptyState
           title="Esta conversación no tiene mensajes"
@@ -132,10 +182,12 @@ export default function ConversationThread({
       )
     }
 
-    return (messages.data ?? []).map((message) => (
+    return (messages.state.data ?? []).map((message) => (
       <MessageBubble key={message.id} message={message} />
     ))
   }
+
+  const showOlderControl = messages.state.status === 'success' && messages.hasOlder
 
   return (
     <Box
@@ -175,6 +227,9 @@ export default function ConversationThread({
       </Stack>
 
       <Box
+        ref={scrollRef}
+        role="log"
+        aria-label="Historial de mensajes"
         sx={{
           flex: 1,
           overflowY: 'auto',
@@ -186,6 +241,25 @@ export default function ConversationThread({
           bgcolor: 'background.default',
         }}
       >
+        {showOlderControl && (
+          <Box sx={{ alignSelf: 'center', textAlign: 'center', mb: 0.5 }}>
+            {messages.loadOlderError !== null && (
+              <Typography variant="caption" color="error" sx={{ display: 'block', mb: 0.5 }}>
+                {describeError(messages.loadOlderError)}
+              </Typography>
+            )}
+            <Button
+              size="small"
+              variant="text"
+              onClick={handleLoadOlder}
+              disabled={messages.loadingOlder}
+              startIcon={messages.loadingOlder ? <CircularProgress size={16} /> : undefined}
+            >
+              Cargar mensajes anteriores
+            </Button>
+          </Box>
+        )}
+
         {renderBody()}
       </Box>
 

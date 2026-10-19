@@ -19,6 +19,10 @@ export function fetchConversation(publicId: string): Promise<{ data: Conversatio
   return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}`)
 }
 
-export function fetchConversationMessages(publicId: string): Promise<CursorPaginated<Message>> {
-  return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/messages`)
+export function fetchConversationMessages(
+  publicId: string,
+  cursor?: string,
+): Promise<CursorPaginated<Message>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/messages${query}`)
 }

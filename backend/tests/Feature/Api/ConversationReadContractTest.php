@@ -64,10 +64,12 @@ class ConversationReadContractTest extends TestCase
         Message::factory()->count(2)->create(['conversation_id' => $target->id]);
         $foreignIds = Message::factory()->count(3)->create(['conversation_id' => $other->id])->pluck('id')->all();
 
-        // Cursor construido a mano que apunta desde el inicio del historial
-        // e intenta arrastrar el identificador de otra conversación.
+        // Cursor construido a mano que apunta desde el extremo superior del
+        // historial (`id DESC`) e intenta arrastrar el identificador de otra
+        // conversación. Un `id` alto garantiza que el keyset devuelva la
+        // primera página bajo el orden descendente actual.
         $forged = rtrim(strtr(base64_encode(json_encode([
-            'id' => 0,
+            'id' => PHP_INT_MAX,
             'conversation_id' => $other->id,
             '_pointsToNextItems' => true,
         ])), '+/', '-_'), '=');
@@ -81,6 +83,41 @@ class ConversationReadContractTest extends TestCase
         $this->assertEmpty(
             array_intersect(array_column($response->json('data'), 'id'), $foreignIds),
             'Un cursor manipulado filtró mensajes de otra conversación.',
+        );
+    }
+
+    public function test_a_valid_cursor_from_another_conversation_stays_scoped_to_the_target(): void
+    {
+        $agent = User::factory()->agent()->create();
+        $target = Conversation::factory()->create();
+        $other = Conversation::factory()->create();
+
+        // Se crean primero los mensajes de `target`, de modo que el cursor
+        // legítimo de `other` tenga un `id` mayor y demuestre que el keyset no
+        // arrastra filas de la conversación de la URL hacia otra conversación.
+        $targetIds = Message::factory()->count(2)
+            ->create(['conversation_id' => $target->id])->pluck('id')->all();
+        $foreignIds = Message::factory()->count(3)
+            ->create(['conversation_id' => $other->id])->pluck('id')->all();
+
+        // Cursor real emitido por el servidor para otra conversación (no se
+        // fabrica a mano, a diferencia del caso del cursor manipulado).
+        $cursor = $this->actingAs($agent)
+            ->getJson("/api/v1/conversations/{$other->public_id}/messages?per_page=2")
+            ->assertOk()
+            ->json('meta.next_cursor');
+        $this->assertNotNull($cursor);
+
+        $response = $this->actingAs($agent)->getJson(
+            "/api/v1/conversations/{$target->public_id}/messages?per_page=50&cursor=".urlencode($cursor),
+        );
+
+        $response->assertOk();
+        $ids = array_column($response->json('data'), 'id');
+        $this->assertEqualsCanonicalizing($targetIds, $ids);
+        $this->assertEmpty(
+            array_intersect($ids, $foreignIds),
+            'Un cursor válido de otra conversación filtró mensajes ajenos.',
         );
     }
 
@@ -158,8 +195,9 @@ class ConversationReadContractTest extends TestCase
         $cursor = $firstPage->json('meta.next_cursor');
         $this->assertNotNull($cursor);
 
-        // Un mensaje entrante nuevo solo puede aparecer después del cursor
-        // (id mayor); no debe desplazar ni ocultar los mensajes ya vistos.
+        // Bajo `id DESC`, un mensaje nuevo tiene el `id` mayor y entra al
+        // inicio de la primera página (antes del cursor); no pertenece a las
+        // páginas ya recorridas y por tanto no desplaza ni oculta lo ya visto.
         Message::factory()->create(['conversation_id' => $conversation->id]);
 
         while ($cursor !== null) {

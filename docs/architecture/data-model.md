@@ -294,7 +294,7 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 | Listado paginado de conversaciones por estado, orden por actividad | `status = ? ORDER BY last_message_at` | `(status, last_message_at)` |
 | «Mis conversaciones» | `assigned_user_id = ? AND status = ?` | `(assigned_user_id, status, last_message_at)` |
 | «Sin asignar» | `assigned_user_id IS NULL` | índice anterior (rama `IS NULL`); **se documenta** que «propias **o** sin asignar» se resuelve con dos consultas/`UNION` |
-| Historial cronológico de mensajes | `conversation_id = ? ORDER BY id` | `(conversation_id, id)` (keyset) |
+| Historial de mensajes (más recientes primero) | `conversation_id = ? ORDER BY id DESC` | `(conversation_id, id)` (keyset; el índice sirve también el recorrido inverso) |
 | Búsqueda de contactos por teléfono | `phone_e164 = ?` | único `phone_e164` |
 | Recuperar eventos pendientes/fallidos | `status IN (...) ORDER BY received_at` | `(status, received_at)` |
 | Mensajes a reintentar / atascados | `processing_status = ? ORDER BY last_error_at` | `(processing_status, last_error_at)` |

@@ -63,7 +63,12 @@ class ConversationController extends Controller
     }
 
     /**
-     * Message history of a conversation, oldest first, keyset paginated.
+     * Message history of a conversation, newest first, keyset paginated.
+     *
+     * The keyset order is `id DESC`: the first page contains the most recent
+     * messages and `meta.next_cursor` walks backwards through older history.
+     * The cursor itself is unchanged; only the direction differs from the
+     * previous `id ASC` contract (see ADR-005, "Contrato de orden").
      */
     public function messages(ListMessagesRequest $request, Conversation $conversation): AnonymousResourceCollection
     {
@@ -71,7 +76,7 @@ class ConversationController extends Controller
 
         $messages = $conversation->messages()
             ->with('sentBy')
-            ->orderBy('id')
+            ->orderByDesc('id')
             ->cursorPaginate($request->integer('per_page', 50));
 
         return MessageResource::collection($messages);

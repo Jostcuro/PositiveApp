@@ -111,7 +111,7 @@ La siguiente etapa prevista son las **operaciones de escritura** (asignación/re
 
 Antes de afrontarla, inspecciona el modelo de datos, los endpoints reales, la policy, la paginación y las decisiones documentadas (ver §3.5), y espera autorización expresa. No la implementes automáticamente al terminar otra tarea.
 
-La UI del Inbox consume **solo la primera página** del listado y del historial; no incluye búsqueda ni filtros. Ampliar la paginación o añadir filtros es trabajo distinto que requiere autorización.
+La UI del Inbox consume **solo la primera página** del listado; del historial consume la primera página (mensajes más recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No incluye búsqueda ni filtros. Ampliar la paginación del listado o añadir filtros es trabajo distinto que requiere autorización.
 
 ### 3.4 Pendientes importantes
 
@@ -134,7 +134,7 @@ Los siguientes contratos son el estado **implementado y probado** (fuente: `back
 - **`assigned_user`:** expone `{id, name}` o `null`. El `id` es el identificador interno de `User`. `User` **no** tiene `public_id`; **no** se crea una migración para añadirlo. El `id` de `assigned_user` no debe tratarse como identidad pública ni usarse en URLs. Cualquier cambio de este contrato requiere una tarea backend explícita que actualice código, tests y ADR.
 - **`contact`:** `{id, display_name}`; el detalle añade `phone_e164`. `id` es el `public_id` del contacto.
 - **Paginación del listado:** *offset* (`LengthAwarePaginator`): `data`, `links` y `meta` con `current_page`, `per_page`, `total`, `last_page`, `from`, `to`, `path` y URLs de página.
-- **Paginación de mensajes:** *keyset* (`CursorPaginator`): `data`, `links` y `meta` con `path`, `per_page`, `next_cursor`, `prev_cursor` (sin `total`).
+- **Paginación de mensajes:** *keyset* (`CursorPaginator`): `data`, `links` y `meta` con `path`, `per_page`, `next_cursor`, `prev_cursor` (sin `total`). Orden fijo del servidor **`id DESC`**: la primera página contiene los mensajes **más recientes** y `next_cursor` avanza hacia mensajes **más antiguos**. Los cursores son opacos y **no persistibles** entre releases cuando cambia la semántica de orden.
 - **No** se exponen campos internos ni de proveedor (p. ej. `processing_status`, `provider_status`, `provider_message_id`, `idempotency_key`, `error_code`, `error_message`, `media_provider_id`) ni claves foráneas. El listado **no** incluye `phone_e164`.
 - **Autorización:** `ConversationPolicy` (`viewAny`/`view`) es la autoridad por recurso. `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila en el listado, pero **no autoriza por sí solo** y debe permanecer coherente con la policy.
 - **Errores:** 401 sin sesión; 404 genérico (`Recurso no encontrado.`) para `public_id` inexistente o malformado; 422 para parámetros inválidos.

@@ -27,7 +27,7 @@ class ConversationMessagesTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
-    public function test_messages_are_returned_in_ascending_id_order(): void
+    public function test_messages_are_returned_in_descending_id_order(): void
     {
         $agent = User::factory()->agent()->create();
         $conversation = Conversation::factory()->create();
@@ -38,9 +38,34 @@ class ConversationMessagesTest extends TestCase
         $this->actingAs($agent)
             ->getJson("/api/v1/conversations/{$conversation->public_id}/messages")
             ->assertOk()
-            ->assertJsonPath('data.0.body', 'first')
+            ->assertJsonPath('meta.prev_cursor', null)
+            ->assertJsonPath('data.0.body', 'third')
             ->assertJsonPath('data.1.body', 'second')
-            ->assertJsonPath('data.2.body', 'third');
+            ->assertJsonPath('data.2.body', 'first');
+    }
+
+    public function test_a_new_message_appears_on_the_first_page(): void
+    {
+        $agent = User::factory()->agent()->create();
+        $conversation = Conversation::factory()->create();
+        Message::factory()->count(2)->create(['conversation_id' => $conversation->id]);
+
+        $this->actingAs($agent)
+            ->getJson("/api/v1/conversations/{$conversation->public_id}/messages")
+            ->assertOk();
+
+        // A newer message has a greater `id` and must surface at the top of the
+        // first page under the `id DESC` keyset contract.
+        $newest = Message::factory()->create([
+            'conversation_id' => $conversation->id,
+            'body' => 'newest',
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson("/api/v1/conversations/{$conversation->public_id}/messages")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $newest->id)
+            ->assertJsonPath('data.0.body', 'newest');
     }
 
     public function test_cursor_pagination_traverses_all_messages_without_duplicates_or_omissions(): void
@@ -67,8 +92,11 @@ class ConversationMessagesTest extends TestCase
             $cursor = $response->json('meta.next_cursor');
         } while ($cursor !== null);
 
-        $this->assertSame($expectedIds, $collected);
+        $this->assertSame(array_reverse($expectedIds), $collected);
         $this->assertSame(count($expectedIds), count(array_unique($collected)));
+        // The traversal walks towards older messages, so the last id is the
+        // smallest one.
+        $this->assertGreaterThan($collected[count($collected) - 1], $collected[0]);
     }
 
     public function test_malformed_cursor_is_rejected(): void

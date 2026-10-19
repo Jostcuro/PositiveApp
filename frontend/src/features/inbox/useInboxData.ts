@@ -1,18 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  fetchConversation,
-  fetchConversationMessages,
-  fetchConversations,
-} from './api.ts'
-import type { AsyncState, Conversation, ConversationDetail, Message } from './types.ts'
+import { fetchConversation, fetchConversations } from './api.ts'
+import { useConversationMessages, type MessagesPagination } from './useConversationMessages.ts'
+import type { AsyncState, Conversation, ConversationDetail } from './types.ts'
 
 const IDLE: AsyncState<never> = { status: 'loading', data: null, error: null }
 
 const loadList = (): Promise<Conversation[]> => fetchConversations().then((r) => r.data)
 const loadDetail = (id: string): Promise<ConversationDetail> =>
   fetchConversation(id).then((r) => r.data)
-const loadMessages = (id: string): Promise<Message[]> =>
-  fetchConversationMessages(id).then((r) => r.data)
 
 interface Keyed<T> {
   key: string
@@ -62,7 +57,7 @@ export interface InboxData {
   reloadList: () => void
   detail: AsyncState<ConversationDetail>
   reloadDetail: () => void
-  messages: AsyncState<Message[]>
+  messages: MessagesPagination
   reloadMessages: () => void
   selectedPublicId: string | null
   activePublicId: string | null
@@ -86,7 +81,7 @@ export function useInboxData(): InboxData {
   const list = useKeyedResource('all', listNonce, loadList)
   const activePublicId = selectedPublicId ?? list.data?.[0]?.id ?? null
   const detail = useKeyedResource(activePublicId, detailNonce, loadDetail)
-  const messages = useKeyedResource(activePublicId, messagesNonce, loadMessages)
+  const messages = useConversationMessages(activePublicId, messagesNonce)
 
   const reloadList = useCallback(() => setListNonce((value) => value + 1), [])
   const reloadDetail = useCallback(() => setDetailNonce((value) => value + 1), [])

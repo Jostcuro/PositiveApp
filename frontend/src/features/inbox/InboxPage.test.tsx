@@ -79,8 +79,8 @@ const detailB: ConversationDetail = {
 
 const messagesA: CursorPaginated<Message> = {
   data: [
-    { id: 1, direction: 'inbound', type: 'text', body: 'Primer mensaje A', sent_by: null, created_at: '2026-01-02T09:00:00+00:00' },
     { id: 2, direction: 'outbound', type: 'text', body: 'Respuesta A', sent_by: 'Ana García', created_at: '2026-01-02T10:00:00+00:00' },
+    { id: 1, direction: 'inbound', type: 'text', body: 'Primer mensaje A', sent_by: null, created_at: '2026-01-02T09:00:00+00:00' },
   ],
   links: { first: null, last: null, prev: null, next: null },
   meta: { path: 'http://localhost/api/v1/conversations', per_page: 30, next_cursor: null, prev_cursor: null },
@@ -125,6 +125,177 @@ describe('InboxPage', () => {
     expect(await screen.findByText('Primer mensaje A')).toBeInTheDocument()
     expect(screen.getByText('Respuesta A')).toBeInTheDocument()
     expect(screen.getByText('+34600000000')).toBeInTheDocument()
+  })
+
+  it('presenta el historial en orden cronológico (antiguo → reciente)', async () => {
+    vi.stubGlobal('fetch', createFetchMock(happyRoutes))
+    renderWithProviders(<InboxPage />)
+
+    // El backend devuelve `id DESC`; la UI invierte para mostrar el más
+    // antiguo arriba (id 1) y el más reciente abajo (id 2).
+    const oldest = await screen.findByText('Primer mensaje A')
+    const newest = screen.getByText('Respuesta A')
+    expect(
+      oldest.compareDocumentPosition(newest) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('carga mensajes anteriores, los antepone y deduplica', async () => {
+    const firstPage: CursorPaginated<Message> = {
+      data: [
+        { id: 4, direction: 'outbound', type: 'text', body: 'Cuarto', sent_by: 'Ana García', created_at: '2026-01-02T12:00:00+00:00' },
+        { id: 3, direction: 'inbound', type: 'text', body: 'Tercero', sent_by: null, created_at: '2026-01-02T11:00:00+00:00' },
+      ],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: 'CURSOR-OLDER', prev_cursor: null },
+    }
+    const secondPage: CursorPaginated<Message> = {
+      // Repite el id 3 para verificar el dedupe por `message.id`.
+      data: [
+        { id: 3, direction: 'inbound', type: 'text', body: 'Tercero', sent_by: null, created_at: '2026-01-02T11:00:00+00:00' },
+        { id: 2, direction: 'inbound', type: 'text', body: 'Segundo', sent_by: null, created_at: '2026-01-02T10:00:00+00:00' },
+        { id: 1, direction: 'inbound', type: 'text', body: 'Primero', sent_by: null, created_at: '2026-01-02T09:00:00+00:00' },
+      ],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: null, prev_cursor: null },
+    }
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        if (url.endsWith('/api/v1/conversations')) return Promise.resolve(json(listBody))
+        if (url.includes(`/${A}/messages`) && url.includes('cursor=CURSOR-OLDER')) {
+          return Promise.resolve(json(secondPage))
+        }
+        if (url.endsWith(`/${A}/messages`)) return Promise.resolve(json(firstPage))
+        if (url.endsWith(`/${A}`)) return Promise.resolve(json({ data: detailA }))
+        return Promise.resolve(json({ message: 'not found' }, 404))
+      }),
+    )
+    renderWithProviders(<InboxPage />)
+
+    const tercero = await screen.findByText('Tercero')
+    const cuarto = screen.getByText('Cuarto')
+    // Primera página ya en orden cronológico dentro de sí misma.
+    expect(tercero.compareDocumentPosition(cuarto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar mensajes anteriores' }))
+
+    expect(await screen.findByText('Primero')).toBeInTheDocument()
+    expect(screen.getByText('Segundo')).toBeInTheDocument()
+    // Dedupe: 'Tercero' aparece una sola vez aunque la página 2 lo repita.
+    expect(screen.getAllByText('Tercero')).toHaveLength(1)
+    // Prepender: los históricos quedan por encima de los ya visibles.
+    const primero = screen.getByText('Primero')
+    expect(primero.compareDocumentPosition(tercero) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Sin más historial, el control desaparece.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Cargar mensajes anteriores' })).not.toBeInTheDocument(),
+    )
+  })
+
+  it('no dispara peticiones concurrentes al cargar anteriores', async () => {
+    const firstPage: CursorPaginated<Message> = {
+      data: [
+        { id: 2, direction: 'inbound', type: 'text', body: 'Segundo', sent_by: null, created_at: '2026-01-02T10:00:00+00:00' },
+        { id: 1, direction: 'inbound', type: 'text', body: 'Primero', sent_by: null, created_at: '2026-01-02T09:00:00+00:00' },
+      ],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: 'CURSOR-ONE', prev_cursor: null },
+    }
+    let resolveOlder: (value: Response) => void = () => {}
+    const older = new Promise<Response>((resolve) => { resolveOlder = resolve })
+    const cursorCalls: string[] = []
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        if (url.endsWith('/api/v1/conversations')) return Promise.resolve(json(listBody))
+        if (url.includes(`/${A}/messages`) && url.includes('cursor=CURSOR-ONE')) {
+          cursorCalls.push(url)
+          return older
+        }
+        if (url.endsWith(`/${A}/messages`)) return Promise.resolve(json(firstPage))
+        if (url.endsWith(`/${A}`)) return Promise.resolve(json({ data: detailA }))
+        return Promise.resolve(json({ message: 'not found' }, 404))
+      }),
+    )
+    renderWithProviders(<InboxPage />)
+
+    await screen.findByText('Primero')
+    const button = screen.getByRole('button', { name: 'Cargar mensajes anteriores' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+
+    expect(cursorCalls).toHaveLength(1)
+
+    resolveOlder(json({
+      data: [],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: null, prev_cursor: null },
+    }))
+    // Sin más historial el control desaparece; confirma que la única petición
+    // en vuelo terminó y actualizó el estado.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Cargar mensajes anteriores' })).not.toBeInTheDocument(),
+    )
+  })
+
+  it('conserva la posición de lectura al prepender mensajes anteriores', async () => {
+    const firstPage: CursorPaginated<Message> = {
+      data: [
+        { id: 102, direction: 'inbound', type: 'text', body: 'Segundo', sent_by: null, created_at: '2026-01-02T10:00:00+00:00' },
+        { id: 101, direction: 'inbound', type: 'text', body: 'Primero', sent_by: null, created_at: '2026-01-02T09:00:00+00:00' },
+      ],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: 'CURSOR-SCROLL', prev_cursor: null },
+    }
+    const secondPage: CursorPaginated<Message> = {
+      data: [
+        { id: 100, direction: 'inbound', type: 'text', body: 'Anterior uno', sent_by: null, created_at: '2026-01-02T08:00:00+00:00' },
+        { id: 99, direction: 'inbound', type: 'text', body: 'Anterior dos', sent_by: null, created_at: '2026-01-02T07:00:00+00:00' },
+      ],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { path: 'http://localhost/api/v1/conversations', per_page: 2, next_cursor: null, prev_cursor: null },
+    }
+
+    let scrollHeight = 1000
+    let scrollTop = 0
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        if (url.endsWith('/api/v1/conversations')) return Promise.resolve(json(listBody))
+        if (url.includes(`/${A}/messages`) && url.includes('cursor=CURSOR-SCROLL')) {
+          scrollHeight = 1200
+          return Promise.resolve(json(secondPage))
+        }
+        if (url.endsWith(`/${A}/messages`)) return Promise.resolve(json(firstPage))
+        if (url.endsWith(`/${A}`)) return Promise.resolve(json({ data: detailA }))
+        return Promise.resolve(json({ message: 'not found' }, 404))
+      }),
+    )
+    renderWithProviders(<InboxPage />)
+
+    await screen.findByText('Segundo')
+    const log = screen.getByRole('log')
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+    })
+
+    // El usuario está leyendo a mitad del hilo.
+    scrollTop = 400
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar mensajes anteriores' }))
+    await screen.findByText('Anterior uno')
+
+    // 1200 (nueva altura) - 1000 (altura previa) + 400 (posición previa) = 600.
+    await waitFor(() => expect(scrollTop).toBe(600))
   })
 
   it('seleccionar otra conversación carga su detalle y mensajes', async () => {

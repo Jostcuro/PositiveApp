@@ -11,7 +11,8 @@ Base técnica en curso. Ya existen **modelo de datos**, **autenticación SPA (Sa
 **API de lectura de conversaciones y mensajes (T06B, aceptada)** y la **integración de lectura del
 Inbox (T07)**. La bandeja `/inbox` consume datos reales (sin datos ficticios en tiempo de ejecución),
 con estados de carga/vacío/error y manejo central de 401. No existe integración externa real ni
-operaciones de escritura; la UI no pagina más allá de la primera página.
+operaciones de escritura; el listado del Inbox consume solo la primera página y el historial permite
+cargar mensajes anteriores con «Cargar mensajes anteriores».
 
 ## Implemented milestones
 
@@ -45,7 +46,11 @@ Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/F
 - **Paginación del listado (conversaciones):** *offset* (`LengthAwarePaginator`): `data`, `links` y `meta`
   (`current_page`, `per_page`, `total`, `last_page`, `from`, `to`, `path`, URLs de página).
 - **Paginación de mensajes:** *keyset* (`CursorPaginator`): `data`, `links` y `meta`
-  (`path`, `per_page`, `next_cursor`, `prev_cursor`; **sin** `total`).
+  (`path`, `per_page`, `next_cursor`, `prev_cursor`; **sin** `total`). Orden fijo del servidor
+  **`id DESC`**: la primera página trae los mensajes **más recientes** y `next_cursor` avanza hacia
+  los **más antiguos**. La UI los presenta en orden cronológico (antiguo → reciente) y pide el
+  historial anterior con `next_cursor` ("Cargar mensajes anteriores"). Cursores **no persistibles**
+  entre releases cuando cambia la semántica de orden.
 - **Autorización:** `ConversationPolicy` (`viewAny`/`view`) es la autoridad por recurso.
   `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila del listado y **no autoriza por sí solo**.
 - **Errores:** 401 sin sesión; 404 genérico (`Recurso no encontrado.`) para `public_id` inexistente/malformado;
@@ -67,13 +72,15 @@ Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/F
 - Bandeja `/inbox` (T07): capa de API tipada en `src/features/inbox/api.ts`, contrato en
   `src/features/inbox/types.ts` y hook `useInboxData` (lista, detalle, mensajes, selección por
   `public_id` y cancelación de respuestas obsoletas). Sin datos ficticios ni *fallback* a mocks.
-  La UI consume **solo la primera página** del listado y del historial; no hay búsqueda ni filtros.
+  La UI consume **solo la primera página** del listado; del historial consume la primera página (más
+  recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes
+  anteriores». No hay búsqueda ni filtros.
 
 ## Next task
 
 **Operaciones de escritura** (asignación/reasignación, cambios de estado y envío de mensajes) con su
 autorización, cuando se autoricen expresamente. La UI todavía no pagina más allá de la primera página
-del listado ni del historial.
+del listado; el historial ya permite cargar mensajes anteriores.
 
 ## Pending integrations
 
