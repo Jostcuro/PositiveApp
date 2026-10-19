@@ -17,7 +17,7 @@ Fase de **base técnica en curso**. Fotografía operativa del estado actual en [
 ### Pendiente
 
 - **Escritura:** asignación/reasignación, cambios de estado y envío de mensajes (outbound) con su autorización.
-- **Paginación en el Inbox:** la UI consume solo la primera página del listado y del historial; faltan controles de página/«cargar más».
+- **Paginación en el Inbox:** el listado consume solo la primera página; el historial permite cargar mensajes anteriores. Faltan controles de página siguiente para el listado y filtros.
 - **Integración entrante real:** webhook y proveedor externo de WhatsApp/Meta (bloqueado, ver más abajo).
 - **Tiempo real:** realtime/polling/WebSockets.
 - Registro público, restablecimiento de contraseña y UI de administración de usuarios.
