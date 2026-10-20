@@ -36,7 +36,8 @@ Método:
 Tabla completa en [ADR-005 § Rendimiento](../decisions/ADR-005-read-api-conversations-messages.md).
 Resumen medido (SQLite):
 
-- Historial (primera página y con cursor): `messages_conversation_id_id_index`, sin *temp B-tree*.
+- Historial (primera página y con cursor `id DESC`): `messages_conversation_id_id_index`, sin *temp B-tree*.
+  Con cursor, el plan usa `conversation_id=? AND id<?`.
 - Listado filtrado por `status`: `conversations_status_last_message_at_index`, sin *temp B-tree*.
 - Listado sin filtro: `SCAN conversations` + *temp B-tree* (esperado; sin índice que sirva la
   ordenación a esta escala).
@@ -54,7 +55,8 @@ Resumen medido (SQLite):
   cursor manipulado que **no** accede a otra conversación y cursor no escalar → 422; métodos
   distintos de GET → 405 (confirma que no existen rutas de escritura implícitas); paridad de
   `admin` en detalle/historial; `page` fuera de rango como 200 vacío bien formado; y estabilidad
-  del keyset ante inserciones nuevas entre páginas (sin duplicados ni omisiones).
+  del keyset ante inserciones nuevas entre páginas (sin duplicados ni omisiones) bajo el orden
+  vigente `id DESC`.
 - **Comentarios de salvaguarda** en `Conversation::scopeVisibleTo` y en `ConversationController::index`
   (por qué el orden no usa una expresión `IS NULL`; que el scope no autoriza por sí solo y debe
   permanecer coherente con `ConversationPolicy::view()`).

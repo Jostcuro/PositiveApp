@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchConversation, fetchConversations } from './api.ts'
+import { fetchConversation } from './api.ts'
+import { useConversationList, type ConversationListPagination } from './useConversationList.ts'
 import { useConversationMessages, type MessagesPagination } from './useConversationMessages.ts'
-import type { AsyncState, Conversation, ConversationDetail } from './types.ts'
+import type { AsyncState, ConversationDetail } from './types.ts'
 
 const IDLE: AsyncState<never> = { status: 'loading', data: null, error: null }
 
-const loadList = (): Promise<Conversation[]> => fetchConversations().then((r) => r.data)
 const loadDetail = (id: string): Promise<ConversationDetail> =>
   fetchConversation(id).then((r) => r.data)
 
@@ -53,8 +53,7 @@ function useKeyedResource<T>(
 }
 
 export interface InboxData {
-  list: AsyncState<Conversation[]>
-  reloadList: () => void
+  list: ConversationListPagination
   detail: AsyncState<ConversationDetail>
   reloadDetail: () => void
   messages: MessagesPagination
@@ -65,7 +64,7 @@ export interface InboxData {
 }
 
 /**
- * Datos del Inbox contra el read API T06B. Concentra la carga de la lista, la
+ * Datos del Inbox contra el read API T06B. Concentra la lista acumulada, la
  * selección por `public_id`, el detalle y los mensajes, además de la
  * cancelación de respuestas obsoletas al cambiar de conversación.
  *
@@ -74,16 +73,16 @@ export interface InboxData {
  */
 export function useInboxData(): InboxData {
   const [selectedPublicId, setSelectedPublicId] = useState<string | null>(null)
-  const [listNonce, setListNonce] = useState(0)
   const [detailNonce, setDetailNonce] = useState(0)
   const [messagesNonce, setMessagesNonce] = useState(0)
 
-  const list = useKeyedResource('all', listNonce, loadList)
-  const activePublicId = selectedPublicId ?? list.data?.[0]?.id ?? null
+  const list = useConversationList()
+  // La selección explícita manda; sin ella, se usa la primera conversación cargada.
+  // Un `loadMore` o `refresh` no cambia la selección una vez elegida.
+  const activePublicId = selectedPublicId ?? list.items[0]?.id ?? null
   const detail = useKeyedResource(activePublicId, detailNonce, loadDetail)
   const messages = useConversationMessages(activePublicId, messagesNonce)
 
-  const reloadList = useCallback(() => setListNonce((value) => value + 1), [])
   const reloadDetail = useCallback(() => setDetailNonce((value) => value + 1), [])
   const reloadMessages = useCallback(() => setMessagesNonce((value) => value + 1), [])
   const selectConversation = useCallback((publicId: string | null) => {
@@ -92,7 +91,6 @@ export function useInboxData(): InboxData {
 
   return {
     list,
-    reloadList,
     detail,
     reloadDetail,
     messages,

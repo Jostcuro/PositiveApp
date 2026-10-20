@@ -158,8 +158,9 @@ cd frontend && npm run dev         # SPA en http://localhost:5173 (proxy /api y 
 - Mensajería saliente y operaciones de escritura (asignación, cambios de estado). El **modelo de datos** ya está
   implementado (`php artisan migrate` crea las tablas del MVP, Tarea 03). El **frontend** tiene tema, layout y la
   bandeja conectada en **solo lectura** al read API (Tareas 04 y 07); la **autenticación** está implementada de
-  extremo a extremo con Sanctum y *proxy* de Vite (Tarea 05). El listado del Inbox no pagina más allá de la
-  primera página; el historial permite cargar mensajes anteriores.
+  extremo a extremo con Sanctum y *proxy* de Vite (Tarea 05). El listado del Inbox pagina con «Cargar más
+  conversaciones» y refresco (Tarea 08, [ADR-007](../decisions/ADR-007-offset-pagination-conversation-list.md));
+  el historial permite cargar mensajes anteriores.
 - Registro de usuarios, restablecimiento de contraseña y UI de administración de usuarios (fuera de la Tarea 05).
 - `Secure`/`SameSite` de cookies y CORS restringido de **producción**; *driver* y caducidad de sesión (fase de despliegue).
 - Validación de Meta (ver [`docs/integrations/meta-integration-pending.md`](../integrations/meta-integration-pending.md)).

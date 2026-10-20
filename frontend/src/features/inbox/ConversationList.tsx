@@ -10,20 +10,25 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import { MessageSquare, RefreshCw } from 'lucide-react'
-import type { AsyncStatus, Conversation } from './types.ts'
+import { ChevronDown, MessageSquare, RefreshCw } from 'lucide-react'
+import type { Conversation } from './types.ts'
+import type { ConversationListStatus } from './useConversationList.ts'
 import { initials } from '../../utils/initials.ts'
 import { formatListTimestamp } from './format.ts'
-import { describeError } from './errorMessage.ts'
 import EmptyState from '../../components/EmptyState.tsx'
 
 interface ConversationListProps {
-  status: AsyncStatus
-  error: unknown
-  conversations: Conversation[]
+  status: ConversationListStatus
+  error: string | null
+  refreshError: string | null
+  items: Conversation[]
   selectedId: string | null
+  hasMore: boolean
+  loadingMore: boolean
+  loadMoreError: string | null
   onSelect: (publicId: string) => void
-  onRetry: () => void
+  onLoadMore: () => void
+  onRefresh: () => void
 }
 
 function displayName(conversation: Conversation): string {
@@ -33,11 +38,20 @@ function displayName(conversation: Conversation): string {
 export default function ConversationList({
   status,
   error,
-  conversations,
+  refreshError,
+  items,
   selectedId,
+  hasMore,
+  loadingMore,
+  loadMoreError,
   onSelect,
-  onRetry,
+  onLoadMore,
+  onRefresh,
 }: ConversationListProps) {
+  const hasItems = items.length > 0
+  const showList = hasItems
+  const showInitialError = status === 'error' && !hasItems
+
   return (
     <Box
       sx={{
@@ -50,8 +64,12 @@ export default function ConversationList({
         borderColor: 'divider',
       }}
     >
-      <Box
+      <Stack
+        direction="row"
+        spacing={1}
         sx={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
           px: 2,
           py: 1.5,
           borderBottom: '1px solid',
@@ -61,9 +79,44 @@ export default function ConversationList({
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
           Bandeja
         </Typography>
-      </Box>
+        {hasItems && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={onRefresh}
+            disabled={status === 'loading'}
+            startIcon={<RefreshCw size={16} />}
+          >
+            Refrescar
+          </Button>
+        )}
+      </Stack>
 
-      {status === 'loading' && (
+      {hasItems && refreshError !== null && (
+        <Box
+          role="alert"
+          sx={{
+            px: 2,
+            py: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            bgcolor: 'error.light',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography variant="caption" color="error" sx={{ fontWeight: 500 }}>
+            {refreshError}
+          </Typography>
+          <Button size="small" variant="text" onClick={onRefresh} startIcon={<RefreshCw size={16} />}>
+            Reintentar
+          </Button>
+        </Box>
+      )}
+
+      {status === 'loading' && !hasItems && (
         <Box
           role="status"
           aria-live="polite"
@@ -74,17 +127,17 @@ export default function ConversationList({
         </Box>
       )}
 
-      {status === 'error' && (
+      {showInitialError && (
         <EmptyState
           icon={<MessageSquare size={32} />}
           title="No se pudieron cargar las conversaciones"
-          description={describeError(error)}
+          description={error ?? 'No se pudo conectar con el servidor.'}
           action={
             <Button
               variant="outlined"
               size="small"
               startIcon={<RefreshCw size={16} />}
-              onClick={onRetry}
+              onClick={onRefresh}
             >
               Reintentar
             </Button>
@@ -92,7 +145,7 @@ export default function ConversationList({
         />
       )}
 
-      {status === 'success' && conversations.length === 0 && (
+      {status === 'ready' && !hasItems && (
         <EmptyState
           icon={<MessageSquare size={32} />}
           title="No hay conversaciones"
@@ -100,9 +153,9 @@ export default function ConversationList({
         />
       )}
 
-      {status === 'success' && conversations.length > 0 && (
+      {showList && (
         <List sx={{ flex: 1, overflowY: 'auto', p: 1 }}>
-          {conversations.map((conversation) => {
+          {items.map((conversation) => {
             const name = displayName(conversation)
 
             return (
@@ -144,6 +197,46 @@ export default function ConversationList({
               </ListItemButton>
             )
           })}
+
+          <Box sx={{ px: 1, py: 1, textAlign: 'center' }}>
+            <Box aria-live="polite">
+              {loadingMore && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  Cargando más conversaciones…
+                </Typography>
+              )}
+            </Box>
+
+            {loadMoreError !== null && (
+              <Typography
+                variant="caption"
+                color="error"
+                sx={{ display: 'block', mb: 0.5 }}
+              >
+                {loadMoreError}
+              </Typography>
+            )}
+
+            {hasMore && loadMoreError === null && (
+              <Button
+                size="small"
+                variant="text"
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                startIcon={
+                  loadingMore ? <CircularProgress size={16} /> : <ChevronDown size={16} />
+                }
+              >
+                Cargar más conversaciones
+              </Button>
+            )}
+
+            {loadMoreError !== null && (
+              <Button size="small" variant="text" onClick={onLoadMore} disabled={loadingMore}>
+                Reintentar
+              </Button>
+            )}
+          </Box>
         </List>
       )}
     </Box>
