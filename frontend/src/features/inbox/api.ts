@@ -11,8 +11,14 @@ import type {
 // existente (cookies de sesión Sanctum + CSRF) y el `public_id` como
 // identificador de conversación. No se inventan endpoints ni parámetros.
 
-export function fetchConversations(): Promise<OffsetPaginated<Conversation>> {
-  return apiRequest('/api/v1/conversations')
+export function fetchConversations(page?: number): Promise<OffsetPaginated<Conversation>> {
+  const query = new URLSearchParams()
+  // La página 1 es la URL canónica sin query; solo se pide página explícita a partir de la 2.
+  if (page !== undefined && page > 1) {
+    query.set('page', String(page))
+  }
+  const suffix = query.toString()
+  return apiRequest(`/api/v1/conversations${suffix ? `?${suffix}` : ''}`)
 }
 
 export function fetchConversation(publicId: string): Promise<{ data: ConversationDetail }> {

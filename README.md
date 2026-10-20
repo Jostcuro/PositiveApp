@@ -13,11 +13,12 @@ Fase de **base técnica en curso**. Fotografía operativa del estado actual en [
 - **Autenticación y autorización (Tarea 05):** login/logout/sesión con **Laravel Sanctum** (cookies de sesión SPA), roles `admin`/`agent`, autorización base y guarda de rutas en la SPA. Ver [ADR-004](docs/decisions/ADR-004-authentication-sanctum.md).
 - **Read API de conversaciones y mensajes (Tarea 06B, aceptada):** endpoints `GET /api/v1/conversations`, `/conversations/{public_id}` y `/conversations/{public_id}/messages`, autenticados, autorizados y paginados, sin exponer campos internos. Ver [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md).
 - **Integración del Inbox con el read API (Tarea 07, solo lectura):** la bandeja `/inbox` consume conversaciones, detalle y mensajes reales, con estados de carga/vacío/error, reintento y manejo central de 401. Sin datos ficticios en tiempo de ejecución. Ver [ADR-006](docs/decisions/ADR-006-frontend-inbox-read-integration.md).
+- **Paginación incremental del listado (Tarea 08):** la bandeja carga páginas siguientes con «Cargar más conversaciones» (offset, acumulación con dedupe por `public_id`) y refresca la primera página. La limitación conocida del offset está documentada en [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md).
 
 ### Pendiente
 
 - **Escritura:** asignación/reasignación, cambios de estado y envío de mensajes (outbound) con su autorización.
-- **Paginación en el Inbox:** el listado consume solo la primera página; el historial permite cargar mensajes anteriores. Faltan controles de página siguiente para el listado y filtros.
+- **Filtros del Inbox:** la API soporta `status`, pero la UI todavía no ofrece un filtro por estado. El listado ya pagina con «Cargar más» y refresco ([ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md)).
 - **Integración entrante real:** webhook y proveedor externo de WhatsApp/Meta (bloqueado, ver más abajo).
 - **Tiempo real:** realtime/polling/WebSockets.
 - Registro público, restablecimiento de contraseña y UI de administración de usuarios.

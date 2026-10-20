@@ -47,7 +47,8 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
 
 - Escritura, envío de mensajes, cambios de estado y asignación.
 - Realtime, WebSockets, polling o Reverb.
-- Búsqueda, filtros avanzados, paginación incremental en UI y notas/tags/media.
+- Búsqueda, filtros avanzados y notas/tags/media. La **paginación incremental del listado** quedó fuera de T07 y se
+  implementó después en [ADR-007](ADR-007-offset-pagination-conversation-list.md).
 - Cambios en el contrato del backend, nuevas migraciones o `public_id` para usuarios.
 
 ## Alternativas consideradas
@@ -62,11 +63,12 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
 
 ## Consecuencias y limitaciones
 
-- **Listado en primera página; historial paginable hacia atrás:** la UI consume la primera página del
-  listado (offset). Del historial (keyset `id DESC`, ver [ADR-005](ADR-005-read-api-conversations-messages.md))
-  consume la primera página (mensajes **más recientes**, presentados en orden cronológico antiguo → reciente)
-  y permite cargar páginas anteriores con «Cargar mensajes anteriores», anteponiéndolas y conservando la
-  posición de lectura. No hay controles de «página siguiente» para el listado ni *scroll* infinito.
+- **Listado paginable por incrementos; historial paginable hacia atrás:** la UI carga la primera página del
+  listado (offset) y permite pedir páginas siguientes con «Cargar más conversaciones», acumulando y deduplicando por
+  `public_id` ([ADR-007](ADR-007-offset-pagination-conversation-list.md)). Del historial (keyset `id DESC`, ver
+  [ADR-005](ADR-005-read-api-conversations-messages.md)) consume la primera página (mensajes **más recientes**,
+  presentados en orden cronológico antiguo → reciente) y permite cargar páginas anteriores con «Cargar mensajes
+  anteriores», anteponiéndolas y conservando la posición de lectura. No hay *scroll* infinito.
 - **Historial ordenado en el cliente:** el backend entrega `id DESC`; el hook de mensajes invierte cada
   página para presentarla cronológicamente, deduplica por `message.id` y descarta respuestas tardías al
   cambiar de conversación.

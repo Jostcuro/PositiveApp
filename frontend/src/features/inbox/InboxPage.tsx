@@ -13,7 +13,6 @@ export default function InboxPage() {
 
   const {
     list,
-    reloadList,
     detail,
     reloadDetail,
     messages,
@@ -55,10 +54,15 @@ export default function InboxPage() {
           <ConversationList
             status={list.status}
             error={list.error}
-            conversations={list.data ?? []}
+            refreshError={list.refreshError}
+            items={list.items}
             selectedId={activePublicId}
+            hasMore={list.hasMore}
+            loadingMore={list.loadingMore}
+            loadMoreError={list.loadMoreError}
             onSelect={selectConversation}
-            onRetry={reloadList}
+            onLoadMore={list.loadMore}
+            onRefresh={list.refresh}
           />
         </Box>
       )}

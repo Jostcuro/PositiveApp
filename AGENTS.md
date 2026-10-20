@@ -111,7 +111,7 @@ La siguiente etapa prevista son las **operaciones de escritura** (asignación/re
 
 Antes de afrontarla, inspecciona el modelo de datos, los endpoints reales, la policy, la paginación y las decisiones documentadas (ver §3.5), y espera autorización expresa. No la implementes automáticamente al terminar otra tarea.
 
-La UI del Inbox consume **solo la primera página** del listado; del historial consume la primera página (mensajes más recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No incluye búsqueda ni filtros. Ampliar la paginación del listado o añadir filtros es trabajo distinto que requiere autorización.
+La UI del Inbox pagina el listado de forma **incremental** con «Cargar más conversaciones» (offset, acumulación con dedupe por `public_id`) y «Refrescar» que recarga la primera página (T08, [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md)); del historial consume la primera página (mensajes más recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No incluye búsqueda ni filtros. Añadir filtros (p. ej. por `status`) es trabajo distinto que requiere autorización.
 
 ### 3.4 Pendientes importantes
 

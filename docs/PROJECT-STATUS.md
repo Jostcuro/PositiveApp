@@ -3,16 +3,17 @@
 > **Propósito:** fotografía operativa del estado **real** del repositorio para que un agente
 > responda rápido a «¿qué existe hoy y qué NO debo asumir que existe?».
 > **Fuente de verdad:** el código y los tests actuales. Este documento enlaza a las fuentes y no las
-> duplica. Última sincronización documental: 2026-10-17 (tras implementar T07).
+> duplica. Última sincronización documental: 2026-10-18 (tras implementar T08).
 
 ## Current state
 
 Base técnica en curso. Ya existen **modelo de datos**, **autenticación SPA (Sanctum)**, una
 **API de lectura de conversaciones y mensajes (T06B, aceptada)** y la **integración de lectura del
 Inbox (T07)**. La bandeja `/inbox` consume datos reales (sin datos ficticios en tiempo de ejecución),
-con estados de carga/vacío/error y manejo central de 401. No existe integración externa real ni
-operaciones de escritura; el listado del Inbox consume solo la primera página y el historial permite
-cargar mensajes anteriores con «Cargar mensajes anteriores».
+con estados de carga/vacío/error y manejo central de 401. El listado pagina de forma incremental con
+«Cargar más conversaciones» (offset, dedupe por `public_id`) y refresco (T08); el historial permite
+cargar mensajes anteriores con «Cargar mensajes anteriores». No existe integración externa real ni
+operaciones de escritura.
 
 ## Implemented milestones
 
@@ -29,6 +30,10 @@ cargar mensajes anteriores con «Cargar mensajes anteriores».
 - **T07 — Integración de lectura del Inbox (solo lectura):** la bandeja `/inbox` consume la API real
   con `public_id`, estados de carga/vacío/error, reintento y manejo central de 401. Se retiraron los
   datos ficticios ([ADR-006](decisions/ADR-006-frontend-inbox-read-integration.md)).
+- **T08 — Paginación incremental del listado:** «Cargar más conversaciones» (offset sobre el contrato
+  existente, acumulación con dedupe por `public_id`) y «Refrescar» que recarga la página 1. La limitación
+  conocida del offset queda documentada y caracterizada por prueba
+  ([ADR-007](decisions/ADR-007-offset-pagination-conversation-list.md)). Sin cambios de backend.
 
 ## Current API contracts
 
@@ -72,15 +77,16 @@ Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/F
 - Bandeja `/inbox` (T07): capa de API tipada en `src/features/inbox/api.ts`, contrato en
   `src/features/inbox/types.ts` y hook `useInboxData` (lista, detalle, mensajes, selección por
   `public_id` y cancelación de respuestas obsoletas). Sin datos ficticios ni *fallback* a mocks.
-  La UI consume **solo la primera página** del listado; del historial consume la primera página (más
-  recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes
-  anteriores». No hay búsqueda ni filtros.
+  El listado pagina de forma incremental con «Cargar más conversaciones» y refresco; la lista acumulada
+  la gestiona `useConversationList` (offset, dedupe por `public_id`, guard de concurrencia y descarte de
+  respuestas tardías). Del historial consume la primera página (más recientes, presentados en orden
+  cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No hay búsqueda ni filtros.
 
 ## Next task
 
 **Operaciones de escritura** (asignación/reasignación, cambios de estado y envío de mensajes) con su
-autorización, cuando se autoricen expresamente. La UI todavía no pagina más allá de la primera página
-del listado; el historial ya permite cargar mensajes anteriores.
+autorización, cuando se autoricen expresamente. El listado ya pagina con «Cargar más» y refresco (T08) y
+el historial ya permite cargar mensajes anteriores.
 
 ## Pending integrations
 
