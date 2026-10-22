@@ -56,8 +56,9 @@ El modelo se deriva de estos escenarios, no de una lista fija de tablas.
 - **Motor/charset:** InnoDB, `utf8mb4` / `utf8mb4_0900_ai_ci` (MySQL 8.4 LTS).
 - **Claves primarias:** `BIGINT UNSIGNED` autoincremental (`id`). Eficiente para FK e índices.
 - **Identificador público:** `public_id` `CHAR(26)` ULID con índice único en los recursos referenciados por
-  URL (`contacts`, `conversations`). Los `messages` se acceden siempre bajo una conversación autorizada y usan
-  su `id` interno. Ver [DD-008](design-decisions-pending.md#dd-008).
+  URL (`contacts`, `conversations`) y en `users` (T09, para `assigned_user.public_id` y el destino de
+  asignación). Los `messages` se acceden siempre bajo una conversación autorizada y usan su `id` interno.
+  Ver [DD-008](design-decisions-pending.md#dd-008) y [ADR-008](../decisions/ADR-008-internal-write-operations.md).
 - **Fechas:** `DATETIME` en UTC (no `TIMESTAMP`, para no depender de la zona horaria de sesión de MySQL).
   Aplicado en las tablas creadas en Tarea 03; la tabla `users` base conserva el `timestamp` del scaffold de
   Laravel (divergencia registrada; alinear solo si se aprueba).
@@ -81,7 +82,8 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 
   | Columna | Tipo | Nulo | Notas |
   |---|---|---|---|
-  | `id` | `BIGINT UNSIGNED` | no | PK |
+  | `id` | `BIGINT UNSIGNED` | no | PK; FK interna (no pública) |
+  | `public_id` | `CHAR(26)` | no | ULID; único; identidad pública (T09) |
   | `name` | `VARCHAR(255)` | no | Nombre para mostrar |
   | `email` | `VARCHAR(255)` | no | Único; login |
   | `password` | `VARCHAR(255)` | no | Hash (Laravel; nunca texto plano) |
@@ -90,12 +92,15 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
   | `deactivated_at` | `DATETIME` | sí | Marca de desactivación (UTC) |
   | `created_at`/`updated_at` | `DATETIME` | no | Laravel |
 
-- **PK:** `id`. **Unicidad:** `email` (unique).
+- **PK:** `id`. **Unicidad:** `email` (unique); `public_id` (unique).
 - **Compatibilidad con Laravel:** se parte de la migración `users` existente y se **añaden** `role`, `is_active`,
-  `deactivated_at` (aplicado en la migración `2026_10_10_000001`); se **eliminó** `email_verified_at` (panel
+  `deactivated_at` (aplicado en la migración `2026_10_10_000001`) y `public_id` (T09, migración
+  `2026_10_19_000001`, con backfill de filas existentes); se **eliminó** `email_verified_at` (panel
   interno, sin flujo de verificación). `remember_token` se **conserva**; prescindir de él depende del modelo de
   autenticación aprobado (DD-013). Cambios de esquema en tarea de migraciones.
-- **Índices:** `email` (unique). No se requieren más.
+- **Índices:** `email` (unique); `public_id` (unique). No se requieren más.
+- **Uso externo:** `users.id` sigue siendo la FK interna en `conversations`, `messages` y `audit_logs`; los
+  contratos públicos usan `users.public_id` para `assigned_user.public_id` y el destino de asignación.
 - **Conservación:** **no se borra**; desactivar es `is_active=0` + `deactivated_at`.
 - **Riesgos de integridad/concurrencia:** desactivar a un usuario con conversaciones asignadas debe resolverse en
   transacción (§6, §D de permisos). Evitar email reutilizado por baja: no se reutiliza (no se borra).
@@ -160,8 +165,9 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
   - *Claim* y reasignación: **update condicional** en transacción (`WHERE assigned_user_id IS NULL` para tomar;
     comparación del responsable actual para reasignar) y **auditoría**; ver §6.
   - `last_message_at` se actualiza en la **misma transacción** que el mensaje, sin retroceder (usar `MAX`/condición).
-  - Reapertura: `resolved → open` anula `resolved_at` e incrementa `reopened_count`; el historial de ciclos vive en
-    `audit_logs` (§[state-machines](state-machines.md)). Tabla dedicada de transiciones **diferida**.
+  - Reapertura **manual** (`resolved → open`, T09): anula `resolved_at` y **no** modifica `reopened_count`. La
+    reapertura automática por actividad entrante (futura) incrementará `reopened_count`; el historial de ciclos
+    vive en `audit_logs` (§[state-machines](state-machines.md)). Tabla dedicada de transiciones **diferida**.
 
 ### 4.4 `messages`
 
@@ -318,8 +324,9 @@ completa, reduciéndola a una tabla mínima justificada (§4.6). No se añaden e
 - **Conservación del historial:** **sin borrados en cascada** sobre `conversations`, `messages` ni `audit_logs`.
   El borrado/anonimización solo por política de retención explícita ([DD-005](design-decisions-pending.md#dd-005)).
 - **Asignaciones válidas:** `assigned_user_id` debe referenciar un usuario **activo** (validado en aplicación);
-  asignar a inactivo se rechaza. Al desactivar un usuario, sus conversaciones se dejan **sin asignar** en la misma
-  transacción + auditoría (provisional, ver [`../security/permission-matrix.md`](../security/permission-matrix.md)).
+  asignar a inactivo se rechaza con `422` (T09). Al desactivar un usuario, sus conversaciones se dejan **sin
+  asignar** en la misma transacción + auditoría (provisional; el flujo de desactivación no forma parte de T09,
+  ver [`../security/permission-matrix.md`](../security/permission-matrix.md)).
 - **Claim concurrente:** tomar una conversación usa **update condicional** (`WHERE assigned_user_id IS NULL`), de
   modo que solo una de las dos operaciones concurrentes (escenario 12) tiene efecto; la otra se informa como conflicto.
 - **Transiciones de estado:** validadas contra la máquina de estados ([`state-machines.md`](state-machines.md));

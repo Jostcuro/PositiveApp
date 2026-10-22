@@ -13,8 +13,9 @@ autenticada por sesión Sanctum y autorizada con `ConversationPolicy`, pero la b
 frontend: sin escritura, envío, realtime ni polling.
 
 El contrato real difiere del modelo de demostración: la conversación se identifica por `public_id` (ULID), el
-mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, el contacto solo incluye
-`phone_e164` en el detalle y la API **no ofrece búsqueda textual**.
+mensaje por su `id` numérico interno, `assigned_user` es `{public_id, name} | null` (originalmente
+`{id, name}`, ver la actualización T09 más abajo), el contacto solo incluye `phone_e164` en el detalle y la
+API **no ofrece búsqueda textual**.
 
 ## Decisión
 
@@ -22,8 +23,8 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
   sesión + CSRF) y expone `fetchConversations`, `fetchConversation(publicId)` y
   `fetchConversationMessages(publicId)`. No se añade un segundo cliente ni una librería de *data fetching*.
 - **Tipos del contrato:** `src/features/inbox/types.ts` refleja literalmente lo expuesto por
-  `ConversationResource`/`MessageResource`. La URL usa **siempre** `public_id`; `assigned_user.id` no se usa como
-  identidad pública.
+  `ConversationResource`/`MessageResource`. La URL usa **siempre** `public_id`; `assigned_user` no se usa como
+  identidad pública por su id interno.
 - **Hook de feature `useInboxData`:** concentra lista, detalle y mensajes. Modela el estado como
   `loading | success | error`, cancela respuestas obsoletas al cambiar de conversación (ignora el resultado de una
   petición anterior aunque llegue después) y permite reintentar la lista o el detalle+mensajes.
@@ -46,6 +47,9 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
 ### Fuera de esta decisión
 
 - Escritura, envío de mensajes, cambios de estado y asignación.
+  > **Actualización T09 (2026-10-19):** la asignación/desasignación y el cambio de estado se
+  > implementaron después en [ADR-008](ADR-008-internal-write-operations.md). El envío de mensajes
+  > sigue fuera de alcance.
 - Realtime, WebSockets, polling o Reverb.
 - Búsqueda, filtros avanzados y notas/tags/media. La **paginación incremental del listado** quedó fuera de T07 y se
   implementó después en [ADR-007](ADR-007-offset-pagination-conversation-list.md).
@@ -73,11 +77,17 @@ mensaje por su `id` numérico interno, `assigned_user` es `{id, name} | null`, e
   página para presentarla cronológicamente, deduplica por `message.id` y descarta respuestas tardías al
   cambiar de conversación.
 - **Sin búsqueda ni filtros:** el Inbox muestra la lista tal como la entrega la API.
-- **`assigned_user`:** se muestra el nombre; su `id` interno no se usa en URLs ni como identidad pública. Un cambio de
-  contrato exige una tarea backend explícita.
+- **`assigned_user`:** se muestra el nombre. Desde T09 el contrato expone `{public_id, name}` (ULID) y ya
+  no el id numérico interno; el `public_id` se usa para asignar al usuario actual, nunca en la URL de la
+  conversación. Un cambio de contrato exige una tarea backend explícita
+  ([ADR-008](ADR-008-internal-write-operations.md)).
 - **Sesión expirada:** un 401 en cualquier lectura redirige a `/login` mediante el handler central; las features no
   duplican esa lógica.
-- **Solo lectura:** el compositor sigue deshabilitado; no se habilitan acciones no soportadas por la API.
+- **Solo lectura (T07):** el compositor sigue deshabilitado; no se habilitan acciones no soportadas por
+  la API. T09 añadió únicamente los controles de asignación/desasignación y cambio de estado.
+  > **Actualización T09 (2026-10-19):** el Inbox muestra «Asignarme»/«Liberar» y un selector de estado
+  > permitido; usa la respuesta confirmada del backend y no aplica cambios optimistas. El envío de
+  > mensajes continúa deshabilitado. Ver [ADR-008](ADR-008-internal-write-operations.md).
 - **Pruebas:** `InboxPage.test.tsx` cubre lista, selección por defecto, cambio de conversación, estado vacío, error y
   reintento, 404, respuestas obsoletas, compositor deshabilitado, comportamiento móvil, orden cronológico,
   carga de mensajes anteriores (prepend, dedupe, control que desaparece), no concurrencia de peticiones y

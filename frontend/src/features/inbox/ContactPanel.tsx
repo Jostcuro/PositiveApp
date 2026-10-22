@@ -8,6 +8,7 @@ import ConversationStatusChip from '../../components/ConversationStatusChip.tsx'
 
 interface ContactPanelProps {
   conversation: ConversationDetail
+  actions?: ReactNode
 }
 
 function PanelField({ label, children }: { label: string; children: ReactNode }) {
@@ -21,7 +22,7 @@ function PanelField({ label, children }: { label: string; children: ReactNode })
   )
 }
 
-export default function ContactPanel({ conversation }: ContactPanelProps) {
+export default function ContactPanel({ conversation, actions }: ContactPanelProps) {
   const name = conversation.contact.display_name ?? 'Contacto sin nombre'
 
   return (
@@ -54,14 +55,18 @@ export default function ContactPanel({ conversation }: ContactPanelProps) {
       </Stack>
 
       <Stack spacing={2}>
-        <PanelField label="Estado">
-          <ConversationStatusChip status={conversation.status} size="medium" />
-        </PanelField>
-        <PanelField label="Responsable">
-          <Typography variant="body2">
-            {conversation.assigned_user?.name ?? 'Sin asignar'}
-          </Typography>
-        </PanelField>
+        {actions ?? (
+          <>
+            <PanelField label="Estado">
+              <ConversationStatusChip status={conversation.status} size="medium" />
+            </PanelField>
+            <PanelField label="Responsable">
+              <Typography variant="body2">
+                {conversation.assigned_user?.name ?? 'Sin asignar'}
+              </Typography>
+            </PanelField>
+          </>
+        )}
         <PanelField label="Abierta">
           <Typography variant="body2">{formatListTimestamp(conversation.opened_at)}</Typography>
         </PanelField>

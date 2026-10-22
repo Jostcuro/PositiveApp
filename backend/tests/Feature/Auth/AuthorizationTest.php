@@ -48,11 +48,13 @@ class AuthorizationTest extends TestCase
     }
 
     /**
-     * Salvaguarda de separación de responsabilidades: la policy de visibilidad
-     * solo expone capacidades de lectura. Si se agregara aquí una operación
-     * administrativa, esta prueba falla y obliga a una revisión explícita.
+     * Salvaguarda de separación de responsabilidades: la policy de conversación
+     * solo expone las abilities explícitamente declaradas. T09 añadió las
+     * mutaciones internas (`assign`, `unassign`, `changeStatus`); la lista se
+     * mantiene cerrada y versionada: si aparece una operación no declarada,
+     * esta prueba falla y obliga a una revisión explícita.
      */
-    public function test_visibility_policy_only_exposes_read_abilities(): void
+    public function test_visibility_policy_only_exposes_declared_abilities(): void
     {
         $methods = array_map(
             fn (ReflectionMethod $method) => $method->getName(),
@@ -61,7 +63,7 @@ class AuthorizationTest extends TestCase
 
         sort($methods);
 
-        $this->assertSame(['view', 'viewAny'], $methods);
+        $this->assertSame(['assign', 'changeStatus', 'unassign', 'view', 'viewAny'], $methods);
     }
 
     public function test_role_is_always_derived_from_the_database(): void

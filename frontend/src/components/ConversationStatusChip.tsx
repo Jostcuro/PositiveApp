@@ -1,12 +1,7 @@
 import type { ChipProps } from '@mui/material'
 import { Chip } from '@mui/material'
 import type { ConversationStatus } from '../features/inbox/types.ts'
-
-const LABELS: Record<ConversationStatus, string> = {
-  open: 'Abierta',
-  pending: 'Esperando respuesta',
-  resolved: 'Resuelta',
-}
+import { CONVERSATION_STATUS_LABELS } from '../features/inbox/statusLabels.ts'
 
 const COLORS: Record<ConversationStatus, ChipProps['color']> = {
   open: 'info',
@@ -25,7 +20,7 @@ export default function ConversationStatusChip({
 }: ConversationStatusChipProps) {
   return (
     <Chip
-      label={LABELS[status]}
+      label={CONVERSATION_STATUS_LABELS[status]}
       color={COLORS[status]}
       size={size}
       variant="outlined"

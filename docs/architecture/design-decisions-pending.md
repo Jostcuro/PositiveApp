@@ -16,13 +16,13 @@
 | [DD-005](#dd-005) | Retención y eliminación de datos / PII | implementación |
 | [DD-006](#dd-006) | Política de archivos multimedia | implementación (parcial) |
 | [DD-007](#dd-007) | Gestión de secretos | integración real |
-| [DD-008](#dd-008) | Identificadores públicos (ULID) | implementación |
+| [DD-008](#dd-008) | Identificadores públicos (ULID) | ninguno (implementado 2026-10-19) |
 | [DD-009](#dd-009) | Identidad de contacto (BSUID/usernames) | diseño |
 | [DD-010](#dd-010) | `whatsapp_accounts` en el MVP | ninguno (revisable) |
 | [DD-011](#dd-011) | Envío de resultado incierto y reconciliación | integración real |
 | [DD-012](#dd-012) | Límite de reintentos y backoff | implementación |
 | [DD-013](#dd-013) | Autenticación y sesiones | ninguno (implementado 2026-10-12) |
-| [DD-014](#dd-014) | Reglas de asignación y reasignación | implementación |
+| [DD-014](#dd-014) | Reglas de asignación y reasignación | ninguno (implementado 2026-10-19) |
 | [DD-015](#dd-015) | Modalidad de integración con Meta | integración real |
 
 ---
@@ -109,12 +109,15 @@
 <a id="dd-008"></a>
 ### DD-008 — Identificadores públicos (ULID)
 - **Pregunta:** ¿se exponen los `id` internos o un identificador público?
-- **Opciones:** (a) `public_id` ULID en `contacts`/`conversations` · (b) exponer `BIGINT` con autorización estricta.
+- **Opciones:** (a) `public_id` ULID en `contacts`/`conversations`/`users` · (b) exponer `BIGINT` con autorización estricta.
 - **Recomendación provisional:** (a), como defensa en profundidad frente a enumeración.
 - **Consecuencia de errar:** enumeración de recursos; no es crítico si la autorización es correcta, pero degrada.
 - **Responsable:** arquitectura.
-- **Bloquea:** implementación (afecta esquema y rutas).
-- **Estado (2026-10-10):** implementada la opción (a) en `contacts`/`conversations` (Tarea 03); aprobación formal pendiente.
+- **Bloquea:** ninguno (implementado).
+- **Estado (2026-10-10):** implementada la opción (a) en `contacts`/`conversations` (Tarea 03).
+- **Actualización (2026-10-19, T09):** se añade `users.public_id` (ULID, único, NOT NULL con backfill);
+  `assigned_user` expone `{public_id, name}` y el destino de asignación se resuelve por `public_id`.
+  Ver [ADR-008](../decisions/ADR-008-internal-write-operations.md).
 
 <a id="dd-009"></a>
 ### DD-009 — Identidad de contacto (BSUID/usernames)
@@ -175,9 +178,15 @@
 - **Recomendación provisional:** (a). Ver [permission-matrix §5.3](../security/permission-matrix.md#53-reasignación).
 - **Decisión (2026-10-10):** aprobada la opción (a): `admin` asigna a cualquiera; `agent` solo toma sin asignar
   hacia sí mismo.
+- **Decisión adicional (T09):** `agent` solo puede reclamar conversaciones **sin asignar**; si ya está asignada,
+  incluso a él mismo, recibe `409` (el no-op de asignación `200` es solo para `admin`). `agent` solo puede
+  desasignar una conversación asignada a sí mismo (si está sin asignar, `403`); `admin` puede desasignar
+  cualquiera, incluido el no-op `200`. El destino debe estar activo (si no, `422`). Los conflictos de
+  concurrencia devuelven `409`.
 - **Consecuencia de errar:** agentes “robándose” conversaciones o sin poder organizarse.
 - **Responsable:** responsable de producto.
-- **Bloquea:** implementación.
+- **Bloquea:** ninguno (implementado 2026-10-19).
+- **Estado (2026-10-19):** implementado en [ADR-008](../decisions/ADR-008-internal-write-operations.md).
 
 <a id="dd-015"></a>
 ### DD-015 — Modalidad de integración con Meta

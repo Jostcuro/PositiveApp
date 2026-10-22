@@ -82,6 +82,8 @@ Este apartado refleja el estado reportado al actualizar este documento. Antes de
 - **TAREA 06A:** auditoría de autenticación, sesiones, CSRF, CORS, cookies, autorización, documentación y pruebas.
 - **TAREA 06B:** API REST **de solo lectura** de conversaciones y mensajes bajo `/api/v1`, autenticada por sesión Sanctum y autorizada con `ConversationPolicy`; **implementada y auditada (T06B-R)**. Ver [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md) y el [informe de auditoría](docs/testing/t06b-read-api-audit.md).
 - **TAREA 07:** integración de la bandeja del Inbox del frontend con el read API real, **solo lectura**. Incluye capa de API tipada, hook de feature con cancelación de respuestas obsoletas, estados de carga/vacío/error, retirada de los datos ficticios y manejo central de 401. Ver [ADR-006](docs/decisions/ADR-006-frontend-inbox-read-integration.md).
+- **TAREA 08:** paginación incremental del listado del Inbox («Cargar más conversaciones» y «Refrescar»). Ver [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md).
+- **TAREA 09:** operaciones internas de escritura del Inbox: `users.public_id` (ULID), asignar/reasignar, desasignar y cambiar estado, con autorización, concurrencia por actualización condicional y auditoría. **No** incluye envío de mensajes ni listado de usuarios. Ver [ADR-008](docs/decisions/ADR-008-internal-write-operations.md).
 
 La auditoría 06A reportó correcciones relacionadas con los dominios stateful de Sanctum y el rechazo de sesiones de usuarios desactivados, además de nuevas pruebas y documentación. La auditoría T06B-R no confirmó defectos, endureció pruebas y documentación, y dejó **fuera de su alcance** la conexión del frontend.
 
@@ -105,40 +107,46 @@ Antes de cambiar la autenticación, inspecciona la implementación actual y el A
 
 ### 3.3 Próxima etapa funcional
 
-La API de lectura de conversaciones y mensajes (T06B) **ya está implementada y aceptada**, y la **T07** (conexión de la bandeja del Inbox del frontend al read API real, solo lectura) **también está implementada**. No reimplementes ninguna de las dos.
+La API de lectura de conversaciones y mensajes (T06B) **ya está implementada y aceptada**, la **T07** (conexión de la bandeja del Inbox del frontend al read API real, solo lectura) **también está implementada**, y la **T09** (operaciones internas de asignación/desasignación y cambio de estado) **también**. No reimplementes ninguna de ellas.
 
-La siguiente etapa prevista son las **operaciones de escritura** (asignación/reasignación, cambios de estado y envío de mensajes) con su autorización. No está autorizada todavía.
+La siguiente etapa prevista es la **mensajería saliente** (envío de mensajes) y las capacidades administrativas que la requieran (p. ej. listado de usuarios). No está autorizada todavía.
 
 Antes de afrontarla, inspecciona el modelo de datos, los endpoints reales, la policy, la paginación y las decisiones documentadas (ver §3.5), y espera autorización expresa. No la implementes automáticamente al terminar otra tarea.
 
-La UI del Inbox pagina el listado de forma **incremental** con «Cargar más conversaciones» (offset, acumulación con dedupe por `public_id`) y «Refrescar» que recarga la primera página (T08, [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md)); del historial consume la primera página (mensajes más recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No incluye búsqueda ni filtros. Añadir filtros (p. ej. por `status`) es trabajo distinto que requiere autorización.
+La UI del Inbox pagina el listado de forma **incremental** con «Cargar más conversaciones» (offset, acumulación con dedupe por `public_id`) y «Refrescar» que recarga la primera página (T08, [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md)); del historial consume la primera página (mensajes más recientes, presentados en orden cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». Desde T09 ofrece «Asignarme»/«Liberar» y un selector de transiciones permitidas, aplicando la respuesta confirmada del backend (sin cambios optimistas). No incluye búsqueda ni filtros. Añadir filtros (p. ej. por `status`) es trabajo distinto que requiere autorización.
 
 ### 3.4 Pendientes importantes
 
-- Operaciones de **escritura** (asignación/reasignación, cambios de estado, envío de mensajes) y su autorización. Los endpoints de lectura ya existen y están autorizados.
-- Contrato público de usuarios: `assigned_user` expone hoy el `id` interno de `User` (ver §3.5). Revisar antes de estabilizar el contrato público de usuarios.
+- **Envío de mensajes** (outbound) y su autorización. La asignación/reasignación, la desasignación y el cambio de estado **ya están implementados** (T09); los endpoints de lectura también.
+- Listado/administración de usuarios mediante endpoints, cuando corresponda al alcance aprobado.
 - Integración real con WhatsApp Business Platform.
 - Configuración definitiva de cookies, HTTPS, CORS y dominios stateful para producción.
-- Administración de usuarios y roles mediante endpoints, cuando corresponda al alcance aprobado.
 - Resolución de limitaciones de pruebas que requieran una base de datos MySQL dedicada.
 - Preparación de despliegue y operación.
 
 Mantén actualizada la documentación de decisiones pendientes. No presentes estos elementos como implementados.
 
-### 3.5 Contratos vigentes del read API (T06B)
+### 3.5 Contratos vigentes del API (lectura y escritura interna)
 
-Los siguientes contratos son el estado **implementado y probado** (fuente: `backend/app/Http/Resources`, `backend/routes/api.php`, `backend/tests/Feature/Api` y [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md)). No los sustituyas por planes anteriores.
+Los siguientes contratos son el estado **implementado y probado** (fuente: `backend/app/Http/Resources`, `backend/routes/api.php`, `backend/tests/Feature/Api`, [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md) y [ADR-008](docs/decisions/ADR-008-internal-write-operations.md)). No los sustituyas por planes anteriores.
 
 - **Conversación:** se identifica públicamente por `public_id` (ULID). La URL usa `public_id`: `/api/v1/conversations/{public_id}`. **Nunca** el `id` numérico interno.
 - **Mensaje:** se identifica por su `id` (numérico interno), expuesto en el payload de mensajes. No dispone de `public_id`.
-- **`assigned_user`:** expone `{id, name}` o `null`. El `id` es el identificador interno de `User`. `User` **no** tiene `public_id`; **no** se crea una migración para añadirlo. El `id` de `assigned_user` no debe tratarse como identidad pública ni usarse en URLs. Cualquier cambio de este contrato requiere una tarea backend explícita que actualice código, tests y ADR.
+- **`assigned_user`:** expone `{public_id, name}` o `null`. El `public_id` es el ULID de `User`. El `id` numérico interno ya **no** forma parte del contrato público de conversaciones. Cualquier cambio de este contrato requiere una tarea backend explícita que actualice código, tests y ADR.
 - **`contact`:** `{id, display_name}`; el detalle añade `phone_e164`. `id` es el `public_id` del contacto.
 - **Paginación del listado:** *offset* (`LengthAwarePaginator`): `data`, `links` y `meta` con `current_page`, `per_page`, `total`, `last_page`, `from`, `to`, `path` y URLs de página.
 - **Paginación de mensajes:** *keyset* (`CursorPaginator`): `data`, `links` y `meta` con `path`, `per_page`, `next_cursor`, `prev_cursor` (sin `total`). Orden fijo del servidor **`id DESC`**: la primera página contiene los mensajes **más recientes** y `next_cursor` avanza hacia mensajes **más antiguos**. Los cursores son opacos y **no persistibles** entre releases cuando cambia la semántica de orden.
 - **No** se exponen campos internos ni de proveedor (p. ej. `processing_status`, `provider_status`, `provider_message_id`, `idempotency_key`, `error_code`, `error_message`, `media_provider_id`) ni claves foráneas. El listado **no** incluye `phone_e164`.
-- **Autorización:** `ConversationPolicy` (`viewAny`/`view`) es la autoridad por recurso. `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila en el listado, pero **no autoriza por sí solo** y debe permanecer coherente con la policy.
-- **Errores:** 401 sin sesión; 404 genérico (`Recurso no encontrado.`) para `public_id` inexistente o malformado; 422 para parámetros inválidos.
-- **Solo lectura:** no existen endpoints de escritura/envío. No se añaden como extensión implícita.
+- **Escritura T09 (solo operaciones internas):**
+  - `POST /api/v1/conversations/{public_id}/assignment` con `{"user": "<user_public_id>"}` (asignar/reasignar).
+  - `DELETE /api/v1/conversations/{public_id}/assignment` (desasignar).
+  - `PATCH /api/v1/conversations/{public_id}/status` con `{"status": "open|pending|resolved"}`.
+  - Responden con el detalle confirmado (`ConversationResource` con teléfono).
+  - **No** existe todavía envío de mensajes ni listado de usuarios (`GET /api/v1/users` no está implementado).
+- **Autorización:** `ConversationPolicy` (`viewAny`, `view`, `assign`, `unassign`, `changeStatus`) es la autoridad por recurso. `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila en el listado, pero **no autoriza por sí solo** y debe permanecer coherente con la policy.
+- **Reglas T09:** `admin` asigna a cualquiera y desasigna cualquiera (incluido el no-op `200` sobre una conversación ya sin asignar); `agent` solo se asigna a sí mismo una conversación **sin asignar** y solo desasigna la suya. Un `agent` que intenta reclamar una conversación ya asignada recibe `409`, incluso si el responsable actual es él mismo; un `agent` sobre una conversación sin asignar al desasignar recibe `403`. El destino debe estar **activo** (`422` si no). Una transición de estado no permitida devuelve `422`. Los conflictos de concurrencia (actualización condicional sin efecto) devuelven `409`.
+- **Errores:** 401 sin sesión/cuenta inactiva; 403 sin permiso; 404 genérico (`Recurso no encontrado.`) para `public_id` inexistente o malformado; 422 para parámetros inválidos/transición no permitida; 409 para conflicto de concurrencia.
+- **Solo lectura y escritura interna:** no existen endpoints de envío de mensajes ni de administración de usuarios. No se añaden como extensión implícita.
 
 ---
 

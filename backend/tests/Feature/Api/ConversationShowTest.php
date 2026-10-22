@@ -61,7 +61,8 @@ class ConversationShowTest extends TestCase
             ->getJson("/api/v1/conversations/{$conversation->public_id}")
             ->assertOk()
             ->assertJsonPath('data.assigned_user.name', 'María López')
-            ->assertJsonPath('data.assigned_user.id', $assignee->id)
+            ->assertJsonPath('data.assigned_user.public_id', $assignee->public_id)
+            ->assertJsonMissingPath('data.assigned_user.id')
             ->assertJsonMissingPath('data.assigned_user.email')
             ->assertJsonMissingPath('data.assigned_user.role');
     }

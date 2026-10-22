@@ -5,6 +5,10 @@ export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 404) return 'El recurso solicitado no existe o ya no está disponible.'
     if (error.status === 422) return 'La solicitud no es válida.'
+    if (error.status === 409) {
+      return error.message || 'La conversación fue modificada por otra operación.'
+    }
+    if (error.status === 403) return 'No tienes permisos para realizar esta acción.'
     if (error.status >= 500) return 'El servidor no está disponible en este momento.'
     if (error.status === 401) return 'La sesión ha expirado.'
     return error.message

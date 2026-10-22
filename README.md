@@ -14,10 +14,12 @@ Fase de **base técnica en curso**. Fotografía operativa del estado actual en [
 - **Read API de conversaciones y mensajes (Tarea 06B, aceptada):** endpoints `GET /api/v1/conversations`, `/conversations/{public_id}` y `/conversations/{public_id}/messages`, autenticados, autorizados y paginados, sin exponer campos internos. Ver [ADR-005](docs/decisions/ADR-005-read-api-conversations-messages.md).
 - **Integración del Inbox con el read API (Tarea 07, solo lectura):** la bandeja `/inbox` consume conversaciones, detalle y mensajes reales, con estados de carga/vacío/error, reintento y manejo central de 401. Sin datos ficticios en tiempo de ejecución. Ver [ADR-006](docs/decisions/ADR-006-frontend-inbox-read-integration.md).
 - **Paginación incremental del listado (Tarea 08):** la bandeja carga páginas siguientes con «Cargar más conversaciones» (offset, acumulación con dedupe por `public_id`) y refresca la primera página. La limitación conocida del offset está documentada en [ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md).
+- **Operaciones internas de escritura (Tarea 09):** asignar/reasignar, desasignar y cambiar estado desde la bandeja, con autorización por policy, `users.public_id` (ULID), auditoría atómica y concurrencia por actualización condicional (`409`). Ver [ADR-008](docs/decisions/ADR-008-internal-write-operations.md).
 
 ### Pendiente
 
-- **Escritura:** asignación/reasignación, cambios de estado y envío de mensajes (outbound) con su autorización.
+- **Mensajería saliente:** envío de mensajes (outbound) con su autorización. La asignación/reasignación, la desasignación y el cambio de estado ya están implementados (T09).
+- **Administración de usuarios:** listado/gestión mediante endpoints (`GET /api/v1/users` no existe).
 - **Filtros del Inbox:** la API soporta `status`, pero la UI todavía no ofrece un filtro por estado. El listado ya pagina con «Cargar más» y refresco ([ADR-007](docs/decisions/ADR-007-offset-pagination-conversation-list.md)).
 - **Integración entrante real:** webhook y proveedor externo de WhatsApp/Meta (bloqueado, ver más abajo).
 - **Tiempo real:** realtime/polling/WebSockets.
@@ -27,11 +29,11 @@ Fase de **base técnica en curso**. Fotografía operativa del estado actual en [
 ### Fuera de alcance actual
 
 - WhatsApp/Meta y Telegram;
-- envío de mensajes y cualquier operación de escritura;
+- envío de mensajes, webhooks y administración de usuarios;
 - polling, WebSockets/Reverb/realtime;
 - infraestructura nueva (Redis, colas, Docker, Nginx).
 
-No hay integración externa real ni operaciones de escritura aunque aparezcan documentadas como diseño.
+Las operaciones de asignación/desasignación y cambio de estado están implementadas (T09); no hay integración externa real ni envío de mensajes.
 
 El **diseño técnico** del MVP (modelo de datos, estados y permisos) está documentado en `docs/architecture/` y `docs/security/`. El modelo de datos ya está materializado.
 

@@ -7,7 +7,7 @@ import { useAuth } from './authContext.ts'
 import { createFetchMock } from '../../test/fetchMock.ts'
 import theme from '../../theme.ts'
 
-const ADMIN = { id: 1, name: 'Ana García', email: 'ana@positive.test', role: 'admin' as const }
+const ADMIN = { id: 1, public_id: '01HQAAAAAAAAAAAAAAAAAAAAAA', name: 'Ana García', email: 'ana@positive.test', role: 'admin' as const }
 
 function Probe() {
   const { status, user } = useAuth()

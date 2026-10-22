@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { Box, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import ContactPanel from './ContactPanel.tsx'
+import ConversationActions from './ConversationActions.tsx'
 import ConversationList from './ConversationList.tsx'
 import ConversationThread from './ConversationThread.tsx'
 import { useInboxData } from './useInboxData.ts'
@@ -20,6 +21,7 @@ export default function InboxPage() {
     selectedPublicId,
     activePublicId,
     selectConversation,
+    mutations,
   } = useInboxData()
 
   const retryDetail = useCallback(() => {
@@ -30,6 +32,9 @@ export default function InboxPage() {
   const hasActive = activePublicId !== null
   const showThread = hasActive && (!isMobile || selectedPublicId !== null)
   const showContactPanel = !isMobile && isWide && showThread && detail.status === 'success'
+  const actions = detail.data ? (
+    <ConversationActions conversation={detail.data} mutations={mutations} />
+  ) : undefined
 
   return (
     <Box
@@ -82,13 +87,14 @@ export default function InboxPage() {
             messages={messages}
             onRetry={retryDetail}
             onBack={isMobile ? () => selectConversation(null) : undefined}
+            actions={isWide ? undefined : actions}
           />
         </Box>
       )}
 
       {showContactPanel && detail.data && (
         <Box sx={{ width: 300, flexShrink: 0, display: 'flex', minHeight: 0 }}>
-          <ContactPanel conversation={detail.data} />
+          <ContactPanel conversation={detail.data} actions={actions} />
         </Box>
       )}
     </Box>

@@ -26,6 +26,18 @@ class Conversation extends Model
 {
     use HasFactory;
 
+    public const STATUS_OPEN = 'open';
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_RESOLVED = 'resolved';
+
+    public const STATUSES = [
+        self::STATUS_OPEN,
+        self::STATUS_PENDING,
+        self::STATUS_RESOLVED,
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (Conversation $conversation) {

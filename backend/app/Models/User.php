@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 #[Fillable(['name', 'email', 'password', 'role', 'is_active', 'deactivated_at'])]
 #[Hidden(['password', 'remember_token'])]
@@ -16,6 +17,15 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (empty($user->public_id)) {
+                $user->public_id = (string) Str::ulid();
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

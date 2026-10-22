@@ -7,7 +7,7 @@ export type ConversationStatus = 'open' | 'pending' | 'resolved'
 export type MessageDirection = 'inbound' | 'outbound'
 
 export interface AssignedUser {
-  id: number
+  public_id: string
   name: string
 }
 

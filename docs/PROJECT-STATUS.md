@@ -3,17 +3,18 @@
 > **Propósito:** fotografía operativa del estado **real** del repositorio para que un agente
 > responda rápido a «¿qué existe hoy y qué NO debo asumir que existe?».
 > **Fuente de verdad:** el código y los tests actuales. Este documento enlaza a las fuentes y no las
-> duplica. Última sincronización documental: 2026-10-18 (tras implementar T08).
+> duplica. Última sincronización documental: 2026-10-19 (tras implementar T09).
 
 ## Current state
 
 Base técnica en curso. Ya existen **modelo de datos**, **autenticación SPA (Sanctum)**, una
-**API de lectura de conversaciones y mensajes (T06B, aceptada)** y la **integración de lectura del
-Inbox (T07)**. La bandeja `/inbox` consume datos reales (sin datos ficticios en tiempo de ejecución),
+**API de lectura de conversaciones y mensajes (T06B, aceptada)**, la **integración de lectura del
+Inbox (T07)** y las **operaciones internas de escritura (T09)**: asignar/reasignar, desasignar y
+cambiar estado. La bandeja `/inbox` consume datos reales (sin datos ficticios en tiempo de ejecución),
 con estados de carga/vacío/error y manejo central de 401. El listado pagina de forma incremental con
 «Cargar más conversaciones» (offset, dedupe por `public_id`) y refresco (T08); el historial permite
-cargar mensajes anteriores con «Cargar mensajes anteriores». No existe integración externa real ni
-operaciones de escritura.
+cargar mensajes anteriores con «Cargar mensajes anteriores». **No** existe integración externa real,
+mensajería saliente, webhooks, realtime ni listado de usuarios.
 
 ## Implemented milestones
 
@@ -34,19 +35,30 @@ operaciones de escritura.
   existente, acumulación con dedupe por `public_id`) y «Refrescar» que recarga la página 1. La limitación
   conocida del offset queda documentada y caracterizada por prueba
   ([ADR-007](decisions/ADR-007-offset-pagination-conversation-list.md)). Sin cambios de backend.
+- **T09 — Operaciones internas de escritura:** `users.public_id` (ULID) con migración y backfill;
+  `POST`/`DELETE /conversations/{public_id}/assignment` y `PATCH /conversations/{public_id}/status`;
+  policy `assign`/`unassign`/`changeStatus`; auditoría atómica en `audit_logs`; concurrencia por
+  actualización condicional (`409`); y controles en el Inbox (asignarme/liberar/cambiar estado) con la
+  respuesta confirmada del backend ([ADR-008](decisions/ADR-008-internal-write-operations.md)).
 
 ## Current API contracts
 
-Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/Feature/Api` y ADR-005.
+Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/Feature/Api`, ADR-005 y ADR-008.
 
 - **Auth:** `/api/v1/auth/{login,me,logout}` (Sanctum, sesión *stateful* + CSRF). `login` con rate limiting.
-- **Conversaciones:** solo lectura. Identificadas públicamente por `public_id` (ULID); la URL usa `public_id`,
-  nunca el `id` numérico.
+  `/auth/me` expone `{id, public_id, name, email, role}` (el `id` interno se conserva por compatibilidad
+  del contrato de autenticación).
+- **Conversaciones:** lectura (`GET`) y operaciones internas de escritura (T09). Identificadas públicamente
+  por `public_id` (ULID); la URL usa `public_id`, nunca el `id` numérico.
+- **Escritura (T09):**
+  - `POST /api/v1/conversations/{public_id}/assignment` con `{"user": "<user_public_id>"}`.
+  - `DELETE /api/v1/conversations/{public_id}/assignment`.
+  - `PATCH /api/v1/conversations/{public_id}/status` con `{"status": "open|pending|resolved"}`.
+  - Responden con el detalle confirmado (`ConversationResource` con teléfono). **No** existe envío de
+    mensajes ni listado de usuarios (`GET /api/v1/users` no está implementado).
 - **Mensajes:** solo lectura. Identificados por su `id` **numérico interno** (no tienen `public_id`).
-- **`assigned_user`:** actualmente expone `{id, name}` o `null`. El `id` corresponde al identificador
-  **interno** de `User`. Actualmente `User` no dispone de un identificador público. Cualquier cambio de este
-  contrato deberá realizarse mediante una **tarea backend explícita** que actualice código, tests y ADR
-  correspondiente. No se debe tratar `assigned_user.id` como identidad pública ni usarlo en URLs.
+- **`assigned_user`:** expone `{public_id, name}` o `null` (T09). El `public_id` es el ULID de `User`; el
+  id numérico interno **ya no** forma parte del contrato público.
 - **`contact`:** `{id, display_name}`; el detalle añade `phone_e164`. En el listado **no** se expone `phone_e164`.
 - **Paginación del listado (conversaciones):** *offset* (`LengthAwarePaginator`): `data`, `links` y `meta`
   (`current_page`, `per_page`, `total`, `last_page`, `from`, `to`, `path`, URLs de página).
@@ -56,10 +68,12 @@ Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/F
   los **más antiguos**. La UI los presenta en orden cronológico (antiguo → reciente) y pide el
   historial anterior con `next_cursor` ("Cargar mensajes anteriores"). Cursores **no persistibles**
   entre releases cuando cambia la semántica de orden.
-- **Autorización:** `ConversationPolicy` (`viewAny`/`view`) es la autoridad por recurso.
-  `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila del listado y **no autoriza por sí solo**.
-- **Errores:** 401 sin sesión; 404 genérico (`Recurso no encontrado.`) para `public_id` inexistente/malformado;
-  422 para parámetros inválidos.
+- **Autorización:** `ConversationPolicy` (`viewAny`, `view`, `assign`, `unassign`, `changeStatus`) es la
+  autoridad por recurso. `Conversation::scopeVisibleTo()` centraliza la visibilidad de fila del listado y
+  **no autoriza por sí solo**.
+- **Errores:** 401 sin sesión/cuenta inactiva; 403 sin permiso; 404 genérico (`Recurso no encontrado.`) para
+  `public_id` inexistente/malformado; 422 para parámetros inválidos o transición no permitida; 409 para
+  conflicto de concurrencia.
 - **No** se exponen campos internos ni de proveedor ni claves foráneas.
 
 ## Current frontend architecture
@@ -81,12 +95,16 @@ Fuente: `backend/routes/api.php`, `backend/app/Http/Resources`, `backend/tests/F
   la gestiona `useConversationList` (offset, dedupe por `public_id`, guard de concurrencia y descarte de
   respuestas tardías). Del historial consume la primera página (más recientes, presentados en orden
   cronológico) y permite cargar páginas anteriores con «Cargar mensajes anteriores». No hay búsqueda ni filtros.
+- **Acciones del Inbox (T09):** `ConversationActions` ofrece «Asignarme»/«Liberar» y un selector con las
+  transiciones permitidas. `useInboxData` aplica la **respuesta confirmada** del backend al detalle y a la
+  lista (`updateItem`), sin cambios optimistas, y descarta resultados tardíos si cambió la selección. El
+  compositor de mensajes sigue deshabilitado.
 
 ## Next task
 
-**Operaciones de escritura** (asignación/reasignación, cambios de estado y envío de mensajes) con su
-autorización, cuando se autoricen expresamente. El listado ya pagina con «Cargar más» y refresco (T08) y
-el historial ya permite cargar mensajes anteriores.
+Pendiente de autorización expresa: **mensajería saliente** (envío de mensajes) y las capacidades
+administrativas que la requieran (p. ej. listado de usuarios para reasignar a un responsable arbitrario).
+La integración con WhatsApp/Meta sigue bloqueada. No iniciar automáticamente.
 
 ## Pending integrations
 
@@ -99,10 +117,11 @@ el historial ya permite cargar mensajes anteriores.
 
 ## Explicitly out of scope
 
-Para el estado actual y T07 (ya implementada): Meta/WhatsApp, Telegram, envío o cualquier escritura,
-cambios de estado, asignación, notas/tags/media, webhooks, polling, WebSockets/Reverb/realtime,
-Redis/colas, Docker/Nginx, nuevas migraciones, nuevos roles, multitenencia, cambios de
-`.env`/secretos y despliegue.
+Para el estado actual (tras T09): Meta/WhatsApp, Telegram, envío de mensajes, webhooks, polling,
+WebSockets/Reverb/realtime, listado/administración de usuarios, notas/tags/media, Redis/colas,
+Docker/Nginx, nuevos roles, multitenencia, cambios de `.env`/secretos y despliegue. Las operaciones de
+asignación/desasignación y cambio de estado **sí** están implementadas, pero limitadas a lo descrito en
+ADR-008.
 
 ## Important architectural decisions
 
@@ -112,19 +131,24 @@ Redis/colas, Docker/Nginx, nuevas migraciones, nuevos roles, multitenencia, camb
 - [ADR-004](decisions/ADR-004-authentication-sanctum.md) — autenticación Sanctum (SPA stateful).
 - [ADR-005](decisions/ADR-005-read-api-conversations-messages.md) — read API de conversaciones y mensajes.
 - [ADR-006](decisions/ADR-006-frontend-inbox-read-integration.md) — integración de lectura del Inbox.
+- [ADR-007](decisions/ADR-007-offset-pagination-conversation-list.md) — paginación incremental del listado.
+- [ADR-008](decisions/ADR-008-internal-write-operations.md) — operaciones internas de escritura (T09).
 - [DD-001](architecture/design-decisions-pending.md#dd-001) — visibilidad: en el MVP **todos** los roles
   operativos leen **todas** las conversaciones.
-- [DD-008](architecture/design-decisions-pending.md#dd-008) — `public_id` ULID en `contacts`/`conversations`
-  (no en `users`).
+- [DD-008](architecture/design-decisions-pending.md#dd-008) — `public_id` ULID en
+  `contacts`/`conversations`/`users`.
 - [Matriz de permisos](security/permission-matrix.md) — autorización por rol y anti-IDOR.
 
 ## Verification status
 
-- **Backend (reportado en la auditoría T06B-R, no re-ejecutado en esta sincronización documental):**
-  `php artisan test tests/Feature/Api` → 45 passed; suite completa → 107 tests, 106 passed, 1 skipped.
-- **Frontend (ejecutado 2026-10-17):** `npm run lint` sin avisos; `npm run test:run` → 5 archivos,
-  21 tests passed; `npm run build` (`tsc -b` + `vite build`) OK. Incluye pruebas de integración del
-  Inbox contra la read API con `fetch` simulado (lista, selección, 404, error/reintento, respuestas
-  obsoletas, móvil y 401 central).
+- **Backend (ejecutado 2026-10-19, tras T09 y su corrección post-auditoría):** `php artisan test` →
+  **150 tests, 149 passed, 1 skipped, 642 assertions** (el skip es la limitación preexistente que
+  requiere MySQL dedicado).
+- **Frontend (ejecutado 2026-10-19, tras T09):** `npm run test:run` → **7 archivos, 44 tests passed**;
+  `npm run lint` sin avisos; `npm run build` (`tsc -b` + `vite build`) OK.
+- **Pint:** `./vendor/bin/pint --test` reporta una incidencia de formato **preexistente** en
+  `backend/tests/Feature/Api/ConversationListOffsetLimitationTest.php`, ajena a T09 y no modificada.
+  Los archivos de T09 pasan Pint.
 - **Manual:** integración Inbox↔API real (backend en ejecución) **no verificada manualmente**; las
-  pruebas frontend usan `fetch` simulado.
+  pruebas frontend usan `fetch` simulado. La concurrencia se valida por la semántica de la actualización
+  condicional (SQLite en memoria), no con una carrera real de procesos.

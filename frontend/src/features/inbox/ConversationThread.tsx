@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
   Box,
   Button,
@@ -21,6 +21,7 @@ interface ConversationThreadProps {
   messages: MessagesPagination
   onRetry: () => void
   onBack?: () => void
+  actions?: ReactNode
 }
 
 interface ScrollAnchor {
@@ -83,6 +84,7 @@ export default function ConversationThread({
   messages,
   onRetry,
   onBack,
+  actions,
 }: ConversationThreadProps) {
   const conversation = detail.data
   const name = conversation?.contact.display_name ?? 'Conversación'
@@ -225,6 +227,20 @@ export default function ConversationThread({
         </Box>
         {conversation && <ConversationStatusChip status={conversation.status} />}
       </Stack>
+
+      {actions && (
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+          }}
+        >
+          {actions}
+        </Box>
+      )}
 
       <Box
         ref={scrollRef}

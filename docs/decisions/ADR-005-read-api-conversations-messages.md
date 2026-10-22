@@ -50,8 +50,10 @@ por el middleware `active`, reutilizando `ConversationPolicy`.
 ### Forma de la respuesta
 
 - Conversación: `id` (= `public_id`), `status`, `opened_at`, `last_message_at`, `resolved_at`,
-  `reopened_count`, `assigned_user` (`{id, name}` o `null`), `contact` (`{id, display_name}`; el detalle
+  `reopened_count`, `assigned_user` (`{public_id, name}` o `null`), `contact` (`{id, display_name}`; el detalle
   añade `phone_e164`), `last_message` (resumen del último mensaje o `null`).
+  > **Actualización T09 (2026-10-19):** `assigned_user.id` (id numérico interno) se sustituyó por
+  > `assigned_user.public_id` (ULID). Ver [ADR-008](ADR-008-internal-write-operations.md).
 - Mensaje: `id`, `direction`, `type`, `body`, `sent_by` (nombre o `null`), `created_at`.
 - Colecciones con el sobre de Laravel: `data` + `links`/`meta` (offset) o `meta.next_cursor` (keyset).
 - **No** se exponen campos internos ni de proveedor (`processing_status`, `provider_status`,
@@ -116,14 +118,16 @@ por el middleware `active`, reutilizando `ConversationPolicy`.
   filtrar una página ya recortada sin alterar el total y los límites de página. Hoy no filtra nada
   (DD-001). **No autoriza por sí solo:** debe permanecer coherente con `ConversationPolicy::view()`, que
   protege el detalle y el historial; si cambia uno, debe cambiar el otro.
-- `assigned_user` expone `{id, name}` usando el **id numérico interno** del usuario (no un `public_id`).
-  Es una decisión explícita (clave estable en el cliente, sin PII de contacto); si se extiende a los
-  usuarios la identificador público de DD-008, deberá migrarse. **Pendiente de confirmación del
-  responsable.**
+- ~~`assigned_user` expone `{id, name}` usando el **id numérico interno** del usuario.~~ **Sustituido en
+  T09:** `assigned_user` expone `{public_id, name}` con el ULID público del usuario (DD-008 ampliado).
+  El `id` numérico interno sigue siendo la PK/FK interna, pero no forma parte de ningún contrato
+  público. Ver [ADR-008](ADR-008-internal-write-operations.md).
 - El listado por offset **no** limita `page` por arriba: un `page` muy alto genera un `OFFSET` grande. A la
   escala del MVP es aceptable; se recomienda un máximo si el listado crece.
 - Los endpoints de lectura **no** tienen limitación de tasa específica (solo la tiene el login). Riesgo bajo
   en el MVP (usuarios autenticados, un solo tenant).
 - La coherencia entre `last_message_at` y la existencia de mensajes (`latestMessage`) depende de que las
-  futuras rutas de escritura mantengan la columna sincronizada; hoy no hay rutas de escritura.
-- La conexión de la bandeja del frontend a esta API **no** forma parte de esta tarea.
+  futuras rutas de mensajería mantengan la columna sincronizada. Las rutas de escritura de T09
+  (asignación y estado) **no** modifican `last_message_at`; el envío de mensajes sigue sin implementarse.
+- La conexión de la bandeja del frontend a esta API se completó en T07 ([ADR-006](ADR-006-frontend-inbox-read-integration.md)).
+  Las operaciones de escritura internas se añadieron en T09 ([ADR-008](ADR-008-internal-write-operations.md)).

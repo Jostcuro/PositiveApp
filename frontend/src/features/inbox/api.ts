@@ -2,6 +2,7 @@ import { apiRequest } from '../auth/apiClient.ts'
 import type {
   Conversation,
   ConversationDetail,
+  ConversationStatus,
   CursorPaginated,
   Message,
   OffsetPaginated,
@@ -31,4 +32,34 @@ export function fetchConversationMessages(
 ): Promise<CursorPaginated<Message>> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/messages${query}`)
+}
+
+// Operaciones internas de escritura T09. El backend responde con el detalle
+// confirmado de la conversación, que se usa para actualizar el estado local en
+// lugar de aplicar cambios optimistas.
+
+export function assignConversation(
+  publicId: string,
+  userPublicId: string,
+): Promise<{ data: ConversationDetail }> {
+  return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/assignment`, {
+    method: 'POST',
+    body: { user: userPublicId },
+  })
+}
+
+export function unassignConversation(publicId: string): Promise<{ data: ConversationDetail }> {
+  return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/assignment`, {
+    method: 'DELETE',
+  })
+}
+
+export function changeConversationStatus(
+  publicId: string,
+  status: ConversationStatus,
+): Promise<{ data: ConversationDetail }> {
+  return apiRequest(`/api/v1/conversations/${encodeURIComponent(publicId)}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
 }

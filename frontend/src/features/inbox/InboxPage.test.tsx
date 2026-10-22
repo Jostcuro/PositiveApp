@@ -32,7 +32,7 @@ const listBody: OffsetPaginated<Conversation> = {
       last_message_at: '2026-01-02T10:00:00+00:00',
       resolved_at: null,
       reopened_count: 0,
-      assigned_user: { id: 1, name: 'Ana García' },
+      assigned_user: { public_id: '01HQAAAAAAAAAAAAAAAAAAAAAA', name: 'Ana García' },
       contact: { id: 'c-1', display_name: 'María López' },
       last_message: {
         id: 10,

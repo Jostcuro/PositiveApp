@@ -10,8 +10,9 @@ class SchemaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_users_table_exposes_role_and_status_columns(): void
+    public function test_users_table_exposes_role_status_and_public_identity_columns(): void
     {
+        $this->assertTrue(Schema::hasColumn('users', 'public_id'));
         $this->assertTrue(Schema::hasColumn('users', 'role'));
         $this->assertTrue(Schema::hasColumn('users', 'is_active'));
         $this->assertTrue(Schema::hasColumn('users', 'deactivated_at'));

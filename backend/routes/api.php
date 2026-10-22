@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\ConversationAssignmentController;
 use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\ConversationStatusController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,5 +29,10 @@ Route::prefix('v1')->group(function () {
         Route::get('conversations', [ConversationController::class, 'index']);
         Route::get('conversations/{conversation:public_id}', [ConversationController::class, 'show']);
         Route::get('conversations/{conversation:public_id}/messages', [ConversationController::class, 'messages']);
+
+        // Internal write operations for the Inbox (Tarea 09).
+        Route::post('conversations/{conversation:public_id}/assignment', [ConversationAssignmentController::class, 'store']);
+        Route::delete('conversations/{conversation:public_id}/assignment', [ConversationAssignmentController::class, 'destroy']);
+        Route::patch('conversations/{conversation:public_id}/status', [ConversationStatusController::class, 'update']);
     });
 });

@@ -4,7 +4,7 @@ import LoginPage from './LoginPage.tsx'
 import { renderWithAuth } from '../test/authTestUtils.tsx'
 import { createFetchMock } from '../test/fetchMock.ts'
 
-const ADMIN = { id: 1, name: 'Ana García', email: 'ana@positive.test', role: 'admin' as const }
+const ADMIN = { id: 1, public_id: '01HQAAAAAAAAAAAAAAAAAAAAAA', name: 'Ana García', email: 'ana@positive.test', role: 'admin' as const }
 
 const routes = [
   { path: '/login', element: <LoginPage /> },

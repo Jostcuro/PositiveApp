@@ -1,6 +1,8 @@
 # Máquinas de estados, errores e idempotencia — MVP de Positive
 
-> **Estado:** propuesta de diseño. **No implementado.**
+> **Estado:** la máquina de **conversación** (transiciones manuales `open`/`pending`/`resolved`) está
+> **implementada** en T09 ([ADR-008](../decisions/ADR-008-internal-write-operations.md)). Las máquinas de
+> **mensaje** y **evento externo** siguen siendo **propuesta de diseño, no implementadas**.
 > Fuente principal de estados, transiciones y política de errores. Los valores aquí definidos son los que
 > referencian [`data-model.md`](data-model.md) y [`../security/permission-matrix.md`](../security/permission-matrix.md).
 > Decisiones sin aprobar en [`design-decisions-pending.md`](design-decisions-pending.md).
@@ -28,21 +30,27 @@
 
 | Origen | Destino | Quién | Condición | Registro |
 |---|---|---|---|---|
-| `open` | `pending` | `manager` (admin/agente autorizado) | Conversación visible para el actor | Auditoría `conversation.status_changed` |
-| `pending` | `open` | `manager` | Visible para el actor | Auditoría |
-| `open` | `resolved` | `manager` | Visible para el actor | Auditoría; fija `resolved_at` |
-| `pending` | `resolved` | `manager` | Visible para el actor | Auditoría; fija `resolved_at` |
-| `resolved` | `open` | **sistema** | Llega un mensaje entrante nuevo | Auditoría `conversation.reopened`; anula `resolved_at`, `reopened_count++` |
-| `resolved` | `open` | `manager` | Reapertura manual autorizada | Auditoría |
+| `open` | `pending` | `admin` o `agent` | Conversación visible (DD-001) | Auditoría `conversation.status_changed` |
+| `pending` | `open` | `admin` o `agent` | Visible (DD-001) | Auditoría |
+| `open` | `resolved` | `admin` o `agent` | Visible (DD-001) | Auditoría; fija `resolved_at` |
+| `pending` | `resolved` | `admin` o `agent` | Visible (DD-001) | Auditoría; fija `resolved_at` |
+| `resolved` | `open` | `admin` o `agent` | Reapertura manual (T09) | Auditoría `conversation.status_changed`; anula `resolved_at`; **no** toca `reopened_count` |
+| `resolved` | `open` | **sistema** (futuro) | Llega un mensaje entrante nuevo | **No implementado**; auditoría `conversation.reopened`, anula `resolved_at`, `reopened_count++` |
 
-Transiciones no listadas se **rechazan** (validación por estado origen con update condicional).
+- **Mismo estado → no-op idempotente:** `200`, sin cambios de timestamp ni contador, sin auditoría (T09).
+- **Transiciones no listadas** (`resolved → pending`, etc.) se rechazan con `422`; un valor desconocido también
+  (`422`). Un conflicto de concurrencia (la fila cambió desde la lectura) devuelve `409`.
+- La transición se aplica con **update condicional por estado origen** dentro de una transacción, más la
+  auditoría (ADR-008).
 
 ### 2.3 Política de reapertura
 
-- **Un mensaje entrante nuevo a una conversación `resolved` la reabre a `open`** (decisión confirmada por el
-  responsable del producto, opción «reabrir la misma conversación»).
-- El historial se conserva: no se crea una conversación nueva; se reinicia el ciclo actual
-  (`opened_at`, `resolved_at=null`, `reopened_count++`).
+- **Reapertura manual (implementada, T09):** un usuario autorizado puede pasar `resolved → open`; se anula
+  `resolved_at` y **no** se incrementa `reopened_count`.
+- **Reapertura automática (futura, no implementada):** un mensaje entrante nuevo a una conversación `resolved` la
+  reabrirá a `open` (decisión confirmada por el responsable del producto, opción «reabrir la misma conversación»),
+  anulando `resolved_at` e incrementando `reopened_count`. Requiere la integración de mensajería, bloqueada.
+- El historial se conserva: no se crea una conversación nueva; se reinicia el ciclo actual.
 - El historial de ciclos vive en `audit_logs`. Una tabla dedicada de transiciones queda **diferida** hasta que la
   analítica por ciclo lo exija.
 

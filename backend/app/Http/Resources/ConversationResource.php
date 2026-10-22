@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,6 +21,25 @@ class ConversationResource extends JsonResource
     }
 
     /**
+     * Build the full detail returned by every successful write operation,
+     * including the idempotent no-op branches.
+     *
+     * Centralizing the relation loading here keeps all mutation responses
+     * (`assigned_user`, `contact.phone_e164`, `last_message`) identical
+     * regardless of whether the service performed an update or returned early.
+     */
+    public static function detail(Conversation $conversation): self
+    {
+        $conversation->loadMissing([
+            'contact',
+            'assignedUser',
+            'latestMessage.sentBy',
+        ]);
+
+        return new self($conversation, includeContactPhone: true);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -32,7 +52,7 @@ class ConversationResource extends JsonResource
             'resolved_at' => $this->resolved_at?->toIso8601String(),
             'reopened_count' => $this->reopened_count,
             'assigned_user' => $this->whenLoaded('assignedUser', fn () => $this->assignedUser === null ? null : [
-                'id' => $this->assignedUser->id,
+                'public_id' => $this->assignedUser->public_id,
                 'name' => $this->assignedUser->name,
             ]),
             'contact' => $this->whenLoaded('contact', fn () => array_merge([

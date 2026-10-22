@@ -1,14 +1,15 @@
 # Matriz de permisos — MVP de Positive
 
-> **Estado:** propuesta. **Parcialmente implementado (TAREA 05 y TAREA 06B).** Implementado hoy:
+> **Estado:** propuesta. **Implementado (TAREA 05, 06B y 09).** Implementado hoy:
 > autenticación de sesión SPA (login/logout/me), rate limiting de login, una **autorización base** con
 > `ConversationPolicy` que refleja la política de visibilidad **vigente** ([DD-001](#dd-001), actualizada
-> el 2026-10-12 — ver §3) y la **API de lectura de conversaciones y mensajes** (T06B) con **scoping
+> el 2026-10-12 — ver §3), la **API de lectura de conversaciones y mensajes** (T06B) con **scoping
 > centralizado** (`Conversation::scopeVisibleTo`) y autorización por recurso
-> ([ADR-005](../decisions/ADR-005-read-api-conversations-messages.md)). Pendiente de implementar: el
-> resto de operaciones de §4 (asignación, estados, envío), que requieren endpoints de escritura aún no
-> construidos. Roles, visibilidad y desactivación/reasignación ([DD-002], [DD-014]) siguen como
-> decisiones aprobadas.
+> ([ADR-005](../decisions/ADR-005-read-api-conversations-messages.md)), y las **operaciones internas de
+> escritura** de asignación/desasignación y cambio de estado (T09,
+> [ADR-008](../decisions/ADR-008-internal-write-operations.md)). **Pendiente de implementar:** el envío
+> de mensajes, la administración de usuarios y el listado de usuarios (`GET /api/v1/users` no existe).
+> Roles, visibilidad y desactivación/reasignación ([DD-002], [DD-014]) siguen como decisiones aprobadas.
 > Fuente de estados: [`../architecture/state-machines.md`](../architecture/state-machines.md). Modelo:
 > [`../architecture/data-model.md`](../architecture/data-model.md).
 
@@ -59,7 +60,7 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 | # | Operación | `admin` | `agent` | Condición / notas |
 |---|---|---|---|---|
 | 1 | Consultar el propio perfil | Sí | Sí | Solo el propio; nunca campos sensibles. |
-| 2 | Listar usuarios | Sí | No | |
+| 2 | Listar usuarios | Sí | No | **No implementado** (sin `GET /api/v1/users`; fuera de T09). |
 | 3 | Crear usuarios | Sí | No | Rol inicial asignable solo por `admin`. |
 | 4 | Modificar usuarios (nombre, email) | Sí | No | |
 | 5 | Activar/desactivar usuarios | Sí | No | Ver §5 (conversaciones asignadas). |
@@ -68,8 +69,8 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 | 8 | Crear contactos | Sí | **Cond.** | Vía conversación entrante; creación manual evaluar. |
 | 9 | Modificar contactos | Sí | **Cond.** | Solo contactos visibles; evaluar si `agent` puede editar. |
 | 10 | Consultar conversaciones | Sí | Sí | §3: visibilidad total para roles operativos en el MVP. |
-| 11 | Asignar/reasignar conversaciones | Sí | **Cond.** | `agent` solo *claim* de **sin asignar** hacia sí mismo; reasignar a otro → solo `admin`. |
-| 12 | Cambiar estado de conversación | Sí | **Cond.** | Solo conversaciones visibles y transición válida. |
+| 11 | Asignar/reasignar conversaciones | Sí | **Cond.** | **Implementado (T09).** `agent` solo *claim* de **sin asignar** hacia sí mismo; reasignar a otro → solo `admin`. Desasignar: `admin` cualquiera; `agent` solo la suya. |
+| 12 | Cambiar estado de conversación | Sí | **Cond.** | **Implementado (T09).** Cualquier conversación visible y transición válida. |
 | 13 | Consultar historial de mensajes | Sí | **Cond.** | Solo de conversaciones visibles. |
 | 14 | Enviar mensajes | Sí | **Cond.** | Solo en conversaciones visibles/responsable. |
 | 15 | Consultar errores de envío | Sí | **Cond.** | Solo de conversaciones visibles. |
@@ -99,9 +100,17 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 
 - `admin` puede reasignar a cualquier usuario **activo**.
 - `agent` solo puede **tomar** (claim) una conversación **sin asignar** hacia sí mismo.
-- Reasignar a un usuario **inactivo** se **rechaza**.
+- Un `agent` que intenta reclamar una conversación **ya asignada** recibe **409**, incluso si el
+  responsable actual es él mismo (no hay no-op de asignación para `agent`).
+- `agent` solo puede **desasignar** una conversación asignada **a sí mismo**; `admin` puede desasignar
+  cualquiera. Un `agent` sobre una conversación **sin asignar** recibe **403** (no es suya); para
+  `admin` es un no-op **200**.
+- Reasignar a un usuario **inactivo** se **rechaza** (`422`).
 - La operación usa **update condicional** en transacción (evita carreras entre dos agentes; ver
-  [data-model §6](../architecture/data-model.md)). Se audita `conversation.assigned` con el anterior y el nuevo.
+  [data-model §6](../architecture/data-model.md)). Un perdedor recibe `409`. Se audita
+  `conversation.assigned`/`conversation.reassigned`/`conversation.unassigned` con identificadores
+  públicos (`user_public_id`), nunca con el id interno. Implementado en T09
+  ([ADR-008](../decisions/ADR-008-internal-write-operations.md)).
 
 ### 5.4 Envío de mensajes
 
@@ -116,7 +125,8 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 - **Búsqueda:** limitar resultados y filtrar por visibilidad; no exponer el directorio completo de contactos.
 - **Detalle:** revalidar autorización por recurso (no confiar en que el id no se conozca).
 - **Historial y errores:** heredan la visibilidad de su conversación.
-- **Identificadores públicos:** `contacts` y `conversations` usan `public_id` ULID (no enumerables). Ver
+- **Identificadores públicos:** `contacts`, `conversations` y `users` usan `public_id` ULID (no enumerables).
+  Los contratos públicos no exponen el id numérico interno (T09: `assigned_user.public_id`). Ver
   [DD-008](design-decisions-pending.md#dd-008).
 - **Errores de API:** formato consistente que **no** revela si un recurso existe o no para un usuario sin acceso
   (evitar oráculos de existencia).
@@ -125,7 +135,9 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 ## 7. Aplicación en backend (requisitos de implementación)
 
 - Policies/Gates por recurso y por acción, con comprobación explícita en cada endpoint de `/api/v1`.
-  Implementado: `ConversationPolicy` (`viewAny`/`view`) y `Gate::authorize` en cada endpoint de lectura.
+  Implementado: `ConversationPolicy` (`viewAny`, `view`, `assign`, `unassign`, `changeStatus`) y
+  `Gate::authorize` en cada endpoint de lectura y escritura. La salvaguarda de
+  `AuthorizationTest` fija el conjunto de abilities declaradas.
 - Un **filtro de visibilidad** único y reutilizado en todas las consultas de conversaciones (hoy total para roles
   operativos; centralizado para poder restringirse más adelante sin reescribir cada endpoint). Implementado como
   `Conversation::scopeVisibleTo(User)`, aplicado en el listado; el acceso por recurso se revalida con la policy. El
@@ -138,8 +150,9 @@ Convención: **Sí** = permitido · **No** = denegado · **Cond.** = condicionad
 
 ## 8. Referencias
 
-- Visibilidad revisada (DD-001) e implementada como autorización base (TAREA 05); desactivación (DD-002) y
-  asignación (DD-014) **decididas** pero pendientes de implementar:
+- Visibilidad revisada (DD-001) e implementada como autorización base (TAREA 05); asignación, desasignación
+  y cambio de estado (DD-014) **implementados** en T09. La desactivación con conversaciones asignadas
+  (DD-002) sigue **decidida pero pendiente** de implementar:
   [`../architecture/design-decisions-pending.md`](../architecture/design-decisions-pending.md).
 - Transiciones permitidas y quién puede ejecutarlas: [`../architecture/state-machines.md`](../architecture/state-machines.md).
 - Controles técnicos pendientes: [`security-baseline.md`](security-baseline.md).

@@ -26,6 +26,12 @@ export interface ConversationListPagination {
   loadMore: () => void
   /** Reinicia desde la página 1 y reemplaza la lista acumulada. */
   refresh: () => void
+  /**
+   * Sustituye un elemento cargado por la versión confirmada por el backend
+   * (p. ej. tras asignar o cambiar el estado), conservando el orden y la
+   * paginación. No inserta elementos que no estén ya en la lista.
+   */
+  updateItem: (conversation: Conversation) => void
 }
 
 interface ListState {
@@ -197,6 +203,18 @@ export function useConversationList(): ConversationListPagination {
       })
   }, [])
 
+  const updateItem = useCallback((conversation: Conversation) => {
+    setState((previous) => {
+      const index = previous.items.findIndex((item) => item.id === conversation.id)
+      if (index === -1) return previous
+
+      const items = previous.items.slice()
+      items[index] = { ...previous.items[index], ...conversation }
+
+      return { ...previous, items }
+    })
+  }, [])
+
   const hasMore = state.meta !== null && state.meta.current_page < state.meta.last_page
 
   return {
@@ -210,5 +228,6 @@ export function useConversationList(): ConversationListPagination {
     hasMore,
     loadMore,
     refresh,
+    updateItem,
   }
 }
